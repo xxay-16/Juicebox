@@ -561,7 +561,8 @@ public class MatrixZoomData {
                         }
                         //Run out of memory if do it here
                         if (SuperAdapter.assemblyModeCurrentlyActive) {
-                            b = AssemblyHeatmapHandler.modifyBlock(b, key, binSize, chr1Index, chr2Index);
+                            b = AssemblyHeatmapHandler.modifyBlock(b, key, binSize, chr1Index, chr2Index,
+                                    (int) getXGridAxis().getBinCount());
                         }
                         if (HiCGlobals.useCache) {
                             blockCache.put(key, b);

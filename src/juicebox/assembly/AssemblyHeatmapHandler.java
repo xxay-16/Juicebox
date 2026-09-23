@@ -54,12 +54,14 @@ public class AssemblyHeatmapHandler {
         final int[] bins;
         final int version, binSize;
         final double mapScale;
+        final int minBins;   // bins covered (bins.length, 0 for the fallback marker)
 
-        AlteredBinTable(int[] bins, int version, int binSize, double mapScale) {
+        AlteredBinTable(int[] bins, int version, int binSize, double mapScale, int minBins) {
             this.bins = bins;
             this.version = version;
             this.binSize = binSize;
             this.mapScale = mapScale;
+            this.minBins = minBins;
         }
     }
 
@@ -81,39 +83,49 @@ public class AssemblyHeatmapHandler {
         AssemblyHeatmapHandler.superAdapter = superAdapter;
     }
 
-    private static AlteredBinTable getAlteredBinTable(int binSize) {
+    private static AlteredBinTable getAlteredBinTable(int binSize, int maxBin) {
         double mapScale = HiCGlobals.hicMapScale;
         int version = assemblyDataVersion;
         AlteredBinTable table = alteredBinTable;
-        if (table != null && table.version == version && table.binSize == binSize && table.mapScale == mapScale) {
+        if (table != null && table.version == version && table.binSize == binSize && table.mapScale == mapScale
+                && table.minBins >= maxBin) {
             return table;
         }
         synchronized (tableLock) {
             table = alteredBinTable;
-            if (table == null || table.version != version || table.binSize != binSize || table.mapScale != mapScale) {
-                table = buildAlteredBinTable(binSize, mapScale);
+            if (table == null || table.version != version || table.binSize != binSize || table.mapScale != mapScale
+                    || table.minBins < maxBin) {
+                table = buildAlteredBinTable(binSize, mapScale, maxBin);
                 alteredBinTable = table;
             }
             return table;
         }
     }
 
-    private static AlteredBinTable buildAlteredBinTable(int binSize, double mapScale) {
+    private static AlteredBinTable buildAlteredBinTable(int binSize, double mapScale, int maxBin) {
         List<Scaffold> scaffolds = listOfOSortedAggregateScaffolds;
         long lastOriginalEnd = scaffolds.get(scaffolds.size() - 1).getOriginalEnd();
         long numBins = (long) ((lastOriginalEnd - 1) / (mapScale * binSize)) + 3;
+        if (maxBin + 2 > numBins) {
+            // cover the full chromosome grid so trailing bins skip the per-record fallback
+            numBins = maxBin + 2;
+        }
         if (numBins > 100_000_000) {
             // pathological assembly or zoom; fall back to per-record lookups
-            return new AlteredBinTable(null, -1, -1, Double.NaN);
+            return new AlteredBinTable(null, -1, -1, Double.NaN, 0);
         }
         int[] bins = new int[(int) numBins];
         for (int bin = 0; bin < bins.length; bin++) {
             bins[bin] = computeAlteredAsmBin(bin, binSize, mapScale);
         }
-        return new AlteredBinTable(bins, assemblyDataVersion, binSize, mapScale);
+        return new AlteredBinTable(bins, assemblyDataVersion, binSize, mapScale, bins.length);
     }
 
     public static Block modifyBlock(Block block, String key, int binSize, int chr1Idx, int chr2Idx) {
+        return modifyBlock(block, key, binSize, chr1Idx, chr2Idx, -1);
+    }
+
+    public static Block modifyBlock(Block block, String key, int binSize, int chr1Idx, int chr2Idx, int maxBin) {
         //temp fix for AllByAll. TODO: trace this!
         if (chr1Idx == 0 && chr2Idx == 0) {
             binSize = 1000 * binSize; // AllByAll is measured in kb
@@ -127,7 +139,7 @@ public class AssemblyHeatmapHandler {
         List<ContactRecord> alteredContacts = new ArrayList<>(block.getContactRecords().size());
         int[] table = null;
         if (listOfOSortedAggregateScaffolds.size() > 1) {
-            AlteredBinTable alteredBinTable = getAlteredBinTable(binSize);
+            AlteredBinTable alteredBinTable = getAlteredBinTable(binSize, maxBin);
             if (alteredBinTable.bins != null) {
                 table = alteredBinTable.bins;
             }
@@ -140,6 +152,9 @@ public class AssemblyHeatmapHandler {
             int alteredAsmBinY = lookupAlteredBin(binY, binSize, table);
 
             if (alteredAsmBinX == -1 || alteredAsmBinY == -1) {
+                alteredContacts.add(record);
+            } else if (alteredAsmBinX == binX && alteredAsmBinY == binY) {
+                // identity mapping (scaffolds that were not moved or inverted): reuse the record
                 alteredContacts.add(record);
             } else {
                 if (alteredAsmBinX > alteredAsmBinY) {
