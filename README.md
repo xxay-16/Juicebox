@@ -18,6 +18,40 @@ We also have new tools:
   interest.
 
 --------------
+本仓库：Windows / JDK 25 构建与性能优化版
+--------------
+基于 Juicebox v2.17.00（commit c7b6988），在 Windows 上以 JDK 25 + Ant 构建，
+并针对装配编辑（JBAT 工作流）与热图渲染做了以下性能优化。
+基线为提交 `b17f0e8`，优化版为 `f8ea3fb`，两者可随时对照。
+
+性能优化清单（均有等价性验证）
+- 装配块坐标变换 modifyBlock：预计算 bin->bin 映射表（按 scaffold 版本、binSize、
+  hicMapScale 失效重建），变换速度约 5x（200 万条记录 ~180ms -> ~30ms），
+  输出与原实现逐位一致（含 AllByAll、精确起点、长度 1 scaffold、越界 bin 等边界用例）。
+- 原始块缓存跨装配编辑保留：移动/翻转 scaffold 后只失效变换后的块，
+  不再重复磁盘 I/O + 解压 + 解析；编辑周期实测 159.7ms -> ~2ms。
+- 热图 tile 直写像素：contact 单像素填充直接写入 tile 栅格 int[]，
+  绕过 Graphics2D 状态机；渲染突发期 fillRect 家族开销 ~18% -> ~9.6%。
+- 小地图（minimap）直写像素 + 状态缓存：原实现每次全量重渲染最粗 zoom 整层
+  （装配视图为 9560x9560 bins、约 3800 万条记录）且走慢速 Graphics 路径，
+  是加载后遮罩迟迟不解除的原因；现按视图状态缓存，渲染走直写路径。
+- Feature2DHandler.getNearbyFeatures 结果列表预分配（EDT 绘制期不再反复扩容拷贝）。
+- BinReader 稀疏块解析按负载字节上界预分配容量（防御 nRecords 字段低估的病态块）。
+
+验证方式
+- juicebox.tools.HiCTools dump 输出与优化前逐字节一致（退出码 0）。
+- modifyBlock 合成基准校验和与原实现一致；各 zoom 块加载记录数与优化前逐一相同。
+- GUI 在 inter.hic 与 genome.hic 上目检渲染正常（主热图、小地图、装配色块）。
+
+构建（Windows / JDK 25）
+
+    set JAVA_HOME=D:/runtime/jdk-25
+    ant -Dskip.tests=true -Djdk.home.1.8=D:/runtime/jdk-25 all
+
+GUI 产物：out/artifacts/Juicebox_jar/Juicebox.jar
+（ uber-JAR 已包含 commons-math3，缺失会导致读取 .hic 时 NoClassDefFoundError ）
+
+--------------
 About Juicebox
 --------------
 Juicebox is visualization software for Hi-C data. This distribution includes the source code for
