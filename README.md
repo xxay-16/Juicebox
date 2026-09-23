@@ -37,6 +37,9 @@ We also have new tools:
   是加载后遮罩迟迟不解除的原因；现按视图状态缓存，渲染走直写路径。
 - Feature2DHandler.getNearbyFeatures 结果列表预分配（EDT 绘制期不再反复扩容拷贝）。
 - BinReader 稀疏块解析按负载字节上界预分配容量（防御 nRecords 字段低估的病态块）。
+- modifyBlock 恒等映射复用原 ContactRecord（未移动的 scaffold 不再重复分配对象，
+  单次剖析会话观测到 1.7GB 的对象分配由此消除）；映射表扩长覆盖整条染色体网格，
+  尾部 bin 不再走逐条二分兜底。
 
 验证方式
 - juicebox.tools.HiCTools dump 输出与优化前逐字节一致（退出码 0）。
