@@ -49,10 +49,22 @@ public class HeatmapRenderer {
     protected static final int PIXEL_WIDTH = 1, PIXEL_HEIGHT = 1;
     private final ColorScaleHandler colorScaleHandler;
     private final Graphics2D g;
+    // optional fast path: when the target is an int-packed image, single-pixel contact
+    // fills bypass the Graphics2D pipeline and write the raster directly
+    private final int[] directPixels;
+    private final int directPixelWidth, directPixelHeight;
+    private int directColor;
 
     public HeatmapRenderer(Graphics2D g, ColorScaleHandler colorScaleHandler) {
+        this(g, colorScaleHandler, null, 0, 0);
+    }
+
+    HeatmapRenderer(Graphics2D g, ColorScaleHandler colorScaleHandler, int[] pixels, int pixelWidth, int pixelHeight) {
         this.g = g;
         this.colorScaleHandler = colorScaleHandler;
+        this.directPixels = pixels;
+        this.directPixelWidth = pixelWidth;
+        this.directPixelHeight = pixelHeight;
     }
 
     public static String getColorScaleCacheKey(MatrixZoomData zd, MatrixType displayOption, NormalizationType obsNorm, NormalizationType ctrlNorm) {
@@ -1261,11 +1273,22 @@ public class HeatmapRenderer {
     }
 
     protected void setColor(Color color) {
-        g.setColor(color);
+        if (directPixels != null) {
+            directColor = color.getRGB();
+        } else {
+            g.setColor(color);
+        }
     }
 
     protected void directPixelPainting(int px, int py) {
-        g.fillRect(px, py, PIXEL_WIDTH, PIXEL_HEIGHT);
+        if (directPixels != null) {
+            // replicate the clipping fillRect applied to out-of-image coordinates
+            if (px >= 0 && py >= 0 && px < directPixelWidth && py < directPixelHeight) {
+                directPixels[py * directPixelWidth + px] = directColor;
+            }
+        } else {
+            g.fillRect(px, py, PIXEL_WIDTH, PIXEL_HEIGHT);
+        }
     }
 
     public void translate(int x, int y) {

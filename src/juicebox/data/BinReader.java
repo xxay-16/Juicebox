@@ -27,9 +27,21 @@ package juicebox.data;
 import htsjdk.tribble.util.LittleEndianInputStream;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class BinReader {
+
+    @SuppressWarnings("unchecked")
+    private static void ensureRecordCapacity(LittleEndianInputStream dis, List<ContactRecord> records,
+                                             int minBytesPerRecord) throws IOException {
+        // type 1 blocks can hold more records than the nRecords hint in the block header;
+        // presize from the remaining payload bytes so the list never grows by copying
+        if (records instanceof ArrayList) {
+            ((ArrayList<ContactRecord>) records).ensureCapacity(dis.available() / minBytesPerRecord + 8);
+        }
+    }
+
     public static void handleBinType(LittleEndianInputStream dis, byte type, int binXOffset, int binYOffset,
                                      List<ContactRecord> records, boolean useShortBinX, boolean useShortBinY,
                                      boolean useShort) throws IOException {
@@ -72,6 +84,7 @@ public class BinReader {
     }
 
     private static void handleBothInts(LittleEndianInputStream dis, int binXOffset, int binYOffset, boolean useShort, List<ContactRecord> records) throws IOException {
+        ensureRecordCapacity(dis, records, useShort ? 6 : 8);
         int rowCount = dis.readInt();
         for (int i = 0; i < rowCount; i++) {
             int binY = binYOffset + dis.readInt();
@@ -86,6 +99,7 @@ public class BinReader {
 
     private static void handleShortY(LittleEndianInputStream dis, int binXOffset, int binYOffset, boolean useShort,
                                      List<ContactRecord> records) throws IOException {
+        ensureRecordCapacity(dis, records, useShort ? 6 : 8);
         int rowCount = dis.readShort();
         for (int i = 0; i < rowCount; i++) {
             int binY = binYOffset + dis.readShort();
@@ -100,6 +114,7 @@ public class BinReader {
 
     private static void handleShortX(LittleEndianInputStream dis, int binXOffset, int binYOffset, boolean useShort,
                                      List<ContactRecord> records) throws IOException {
+        ensureRecordCapacity(dis, records, useShort ? 4 : 6);
         int rowCount = dis.readInt();
         for (int i = 0; i < rowCount; i++) {
             int binY = binYOffset + dis.readInt();
@@ -114,6 +129,7 @@ public class BinReader {
 
     private static void handleBothShorts(LittleEndianInputStream dis, int binXOffset, int binYOffset, boolean useShort,
                                          List<ContactRecord> records) throws IOException {
+        ensureRecordCapacity(dis, records, useShort ? 4 : 6);
         int rowCount = dis.readShort();
         for (int i = 0; i < rowCount; i++) {
             int binY = binYOffset + dis.readShort();

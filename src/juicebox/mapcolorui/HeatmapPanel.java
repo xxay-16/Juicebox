@@ -209,6 +209,11 @@ public class HeatmapPanel extends JComponent {
         }
     }
 
+    // rendered on the EDT for the minimap; cache it so repeated updateThumbnail calls
+    // (load sequence, refreshes, color changes) only re-render when the state changes
+    private String cachedThumbnailKey = null;
+    private Image cachedThumbnailImage = null;
+
     public Image getThumbnailImage(MatrixZoomData zd0, MatrixZoomData ctrl0, int tw, int th, MatrixType displayOption,
                                    NormalizationType observedNormalizationType, NormalizationType controlNormalizationType) {
         if (MatrixType.isPearsonType(displayOption) && hic.isPearsonsNotAvailableForFile(false)) {
@@ -222,6 +227,15 @@ public class HeatmapPanel extends JComponent {
         int wh = Math.max(maxBinCountX, maxBinCountY); // todo assumption for thumbnail
         //if (wh > 1000) wh=1000; // this can happen with single resolution hic files - breaks thumbnail localization
 
+        String cacheKey = zd0.getKey() + "|" + wh + "|" + tw + "x" + th + "|" + displayOption + "|"
+                + observedNormalizationType + "|" + controlNormalizationType + "|"
+                + zd0.getColorScaleKey(displayOption, observedNormalizationType, controlNormalizationType) + "|"
+                + juicebox.assembly.AssemblyHeatmapHandler.getAssemblyDataVersion() + "|"
+                + (HiCGlobals.isDarkulaModeEnabled ? "d" : "l");
+        if (cacheKey.equals(cachedThumbnailKey) && cachedThumbnailImage != null) {
+            return cachedThumbnailImage;
+        }
+
         BufferedImage image = (BufferedImage) createImage(wh, wh);
         Graphics2D g = image.createGraphics();
         if (HiCGlobals.isDarkulaModeEnabled) {
@@ -229,7 +243,13 @@ public class HeatmapPanel extends JComponent {
             g.fillRect(0, 0, wh, wh);
         }
 
-        HeatmapRenderer renderer = new HeatmapRenderer(g, colorScaleHandler);
+        // single-pixel contact fills go straight into the raster, skipping the Graphics2D pipeline
+        int[] pixelData = null;
+        if (image.getRaster().getDataBuffer() instanceof java.awt.image.DataBufferInt) {
+            pixelData = ((java.awt.image.DataBufferInt) image.getRaster().getDataBuffer()).getData();
+        }
+
+        HeatmapRenderer renderer = new HeatmapRenderer(g, colorScaleHandler, pixelData, wh, wh);
         boolean success = renderer.render(0,
                 0,
                 maxBinCountX,
@@ -245,7 +265,10 @@ public class HeatmapPanel extends JComponent {
 
         if (!success) return null;
 
-        return image.getScaledInstance(tw, th, Image.SCALE_REPLICATE);
+        Image scaled = image.getScaledInstance(tw, th, Image.SCALE_REPLICATE);
+        cachedThumbnailKey = cacheKey;
+        cachedThumbnailImage = scaled;
+        return scaled;
 
     }
 

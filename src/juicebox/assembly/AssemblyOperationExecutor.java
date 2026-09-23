@@ -102,7 +102,7 @@ public class AssemblyOperationExecutor {
     private static void performAssemblyAction(final SuperAdapter superAdapter, final AssemblyScaffoldHandler assemblyScaffoldHandler, final Boolean refreshMap) {
 
         superAdapter.getAssemblyStateTracker().assemblyActionPerformed(assemblyScaffoldHandler, refreshMap);
-        if (refreshMap) superAdapter.safeClearAllMZDCache();
+        if (refreshMap) superAdapter.safeClearAllModifiedMZDCache();
 
     }
 }

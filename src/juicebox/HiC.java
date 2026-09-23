@@ -1235,6 +1235,13 @@ public class HiC {
         }
     }
 
+    public void clearAllModifiedMatrixZoomDataCache() {
+        dataset.clearModifiedBlockCacheOnly();
+        if (isControlLoaded()) {
+            controlDataset.clearModifiedBlockCacheOnly();
+        }
+    }
+
     private void clearAllCacheForDataset(Dataset ds) {
         ds.clearCache(false);
     }

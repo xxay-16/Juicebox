@@ -86,6 +86,8 @@ public class MatrixZoomData {
     protected final int blockColumnCount;     // number of block columns
     // Cache the last 20 blocks loaded
     protected final LRUCache<String, Block> blockCache = new LRUCache<>(500);
+    // raw (pre-assembly-transform) blocks; survives assembly edits so they are not re-read and re-parsed
+    protected final LRUCache<String, Block> rawBlockCache = new LRUCache<>(100);
     private final HashMap<NormalizationType, BasicMatrix> pearsonsMap;
     private final HashMap<NormalizationType, BasicMatrix> normSquaredMaps;
     //private BigContactRecordList localCacheOfRecords = null;
@@ -540,9 +542,22 @@ public class MatrixZoomData {
                 public void run() {
                     try {
                         String key = getBlockKey(blockNumber, no);
-                        Block b = reader.readNormalizedBlock(blockNumber, MatrixZoomData.this, no);
+                        Block b = null;
+                        if (HiCGlobals.useCache) {
+                            synchronized (rawBlockCache) {
+                                b = rawBlockCache.get(key);
+                            }
+                        }
                         if (b == null) {
-                            b = new Block(blockNumber, key);   // An empty block
+                            b = reader.readNormalizedBlock(blockNumber, MatrixZoomData.this, no);
+                            if (b == null) {
+                                b = new Block(blockNumber, key);   // An empty block
+                            }
+                            if (HiCGlobals.useCache) {
+                                synchronized (rawBlockCache) {
+                                    rawBlockCache.put(key, b);
+                                }
+                            }
                         }
                         //Run out of memory if do it here
                         if (SuperAdapter.assemblyModeCurrentlyActive) {
@@ -1225,10 +1240,21 @@ public class MatrixZoomData {
         if (onlyClearInter && isIntra) return;
         if (HiCGlobals.useCache) {
             blockCache.clear();
+            synchronized (rawBlockCache) {
+                rawBlockCache.clear();
+            }
         }
         if (iteratorContainer != null) {
             iteratorContainer.clear();
             iteratorContainer = null;
+        }
+    }
+
+    public void clearModifiedBlockCacheOnly() {
+        // assembly edits change the coordinate mapping but not the underlying data,
+        // so only the transformed blocks are dropped and raw blocks are reused
+        if (HiCGlobals.useCache) {
+            blockCache.clear();
         }
     }
 

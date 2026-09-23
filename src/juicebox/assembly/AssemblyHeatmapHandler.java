@@ -40,20 +40,77 @@ public class AssemblyHeatmapHandler {
 
     private static SuperAdapter superAdapter;
     private static List<Scaffold> listOfOSortedAggregateScaffolds = new ArrayList<>();
-//    Does not seem to offer any speedup.
+    // bumped whenever the sorted scaffold list is replaced, i.e. on every assembly edit
+    private static volatile int assemblyDataVersion = 0;
+    //    Does not seem to offer much advantage
 //    private static Scaffold guessScaffold = null;
+
+    // bin -> altered-bin lookup table, rebuilt when (version, binSize, hicMapScale) changes;
+    // turns the per-record scaffold binary search into an array read
+    private static final Object tableLock = new Object();
+    private static volatile AlteredBinTable alteredBinTable = null;
+
+    private static final class AlteredBinTable {
+        final int[] bins;
+        final int version, binSize;
+        final double mapScale;
+
+        AlteredBinTable(int[] bins, int version, int binSize, double mapScale) {
+            this.bins = bins;
+            this.version = version;
+            this.binSize = binSize;
+            this.mapScale = mapScale;
+        }
+    }
 
     public static void setListOfOSortedAggregateScaffolds(List<Scaffold> listOfAggregateScaffolds) {
         AssemblyHeatmapHandler.listOfOSortedAggregateScaffolds = new ArrayList<>(listOfAggregateScaffolds);
         Collections.sort(listOfOSortedAggregateScaffolds, Scaffold.originalStateComparator);
+        assemblyDataVersion++;
     }
 
     public static SuperAdapter getSuperAdapter() {
         return AssemblyHeatmapHandler.superAdapter;
     }
 
+    public static int getAssemblyDataVersion() {
+        return assemblyDataVersion;
+    }
+
     public static void setSuperAdapter(SuperAdapter superAdapter) {
         AssemblyHeatmapHandler.superAdapter = superAdapter;
+    }
+
+    private static AlteredBinTable getAlteredBinTable(int binSize) {
+        double mapScale = HiCGlobals.hicMapScale;
+        int version = assemblyDataVersion;
+        AlteredBinTable table = alteredBinTable;
+        if (table != null && table.version == version && table.binSize == binSize && table.mapScale == mapScale) {
+            return table;
+        }
+        synchronized (tableLock) {
+            table = alteredBinTable;
+            if (table == null || table.version != version || table.binSize != binSize || table.mapScale != mapScale) {
+                table = buildAlteredBinTable(binSize, mapScale);
+                alteredBinTable = table;
+            }
+            return table;
+        }
+    }
+
+    private static AlteredBinTable buildAlteredBinTable(int binSize, double mapScale) {
+        List<Scaffold> scaffolds = listOfOSortedAggregateScaffolds;
+        long lastOriginalEnd = scaffolds.get(scaffolds.size() - 1).getOriginalEnd();
+        long numBins = (long) ((lastOriginalEnd - 1) / (mapScale * binSize)) + 3;
+        if (numBins > 100_000_000) {
+            // pathological assembly or zoom; fall back to per-record lookups
+            return new AlteredBinTable(null, -1, -1, Double.NaN);
+        }
+        int[] bins = new int[(int) numBins];
+        for (int bin = 0; bin < bins.length; bin++) {
+            bins[bin] = computeAlteredAsmBin(bin, binSize, mapScale);
+        }
+        return new AlteredBinTable(bins, assemblyDataVersion, binSize, mapScale);
     }
 
     public static Block modifyBlock(Block block, String key, int binSize, int chr1Idx, int chr2Idx) {
@@ -62,11 +119,25 @@ public class AssemblyHeatmapHandler {
             binSize = 1000 * binSize; // AllByAll is measured in kb
         }
 
-        List<ContactRecord> alteredContacts = new ArrayList<>();
+        // without aggregate scaffolds every bin lookup misses and records pass through unchanged
+        if (listOfOSortedAggregateScaffolds.isEmpty()) {
+            return block;
+        }
+
+        List<ContactRecord> alteredContacts = new ArrayList<>(block.getContactRecords().size());
+        int[] table = null;
+        if (listOfOSortedAggregateScaffolds.size() > 1) {
+            AlteredBinTable alteredBinTable = getAlteredBinTable(binSize);
+            if (alteredBinTable.bins != null) {
+                table = alteredBinTable.bins;
+            }
+        }
         for (ContactRecord record : block.getContactRecords()) {
 
-            int alteredAsmBinX = getAlteredAsmBin(record.getBinX(), binSize);
-            int alteredAsmBinY = getAlteredAsmBin(record.getBinY(), binSize);
+            int binX = record.getBinX();
+            int binY = record.getBinY();
+            int alteredAsmBinX = lookupAlteredBin(binX, binSize, table);
+            int alteredAsmBinY = lookupAlteredBin(binY, binSize, table);
 
             if (alteredAsmBinX == -1 || alteredAsmBinY == -1) {
                 alteredContacts.add(record);
@@ -86,11 +157,22 @@ public class AssemblyHeatmapHandler {
         return block;
     }
 
+    private static int lookupAlteredBin(int binValue, int binSize, int[] table) {
+        if (table != null && binValue >= 0 && binValue < table.length) {
+            return table[binValue];
+        }
+        return getAlteredAsmBin(binValue, binSize);
+    }
+
 
 
     private static int getAlteredAsmBin(int binValue, int binSize) {
+        return computeAlteredAsmBin(binValue, binSize, HiCGlobals.hicMapScale);
+    }
 
-        long originalFirstNucleotide = (long) (binValue * HiCGlobals.hicMapScale * binSize + 1);
+    private static int computeAlteredAsmBin(int binValue, int binSize, double mapScale) {
+
+        long originalFirstNucleotide = (long) (binValue * mapScale * binSize + 1);
         long currentFirstNucleotide;
         Scaffold aggregateScaffold = lookUpOriginalAggregateScaffold(originalFirstNucleotide);
 
@@ -98,27 +180,37 @@ public class AssemblyHeatmapHandler {
             if (!aggregateScaffold.getInvertedVsInitial()) {
                 currentFirstNucleotide = (aggregateScaffold.getCurrentStart() + originalFirstNucleotide - aggregateScaffold.getOriginalStart());
             } else {
-                currentFirstNucleotide = (aggregateScaffold.getCurrentEnd() - originalFirstNucleotide + 2 - (long) (HiCGlobals.hicMapScale * binSize) + aggregateScaffold.getOriginalStart());
+                currentFirstNucleotide = (aggregateScaffold.getCurrentEnd() - originalFirstNucleotide + 2 - (long) (mapScale * binSize) + aggregateScaffold.getOriginalStart());
             }
 
-            return (int) ((currentFirstNucleotide - 1) / (HiCGlobals.hicMapScale * binSize));
+            return (int) ((currentFirstNucleotide - 1) / (mapScale * binSize));
         }
         return -1;
     }
 
     private static Scaffold lookUpOriginalAggregateScaffold(long genomicPos) {
-//        Does not seem to offer much advantage
-//        if (guessScaffold!=null && guessScaffold.getOriginalStart()<genomicPos && guessScaffold.getOriginalEnd()>=genomicPos){
-//            return guessScaffold;
-//        }
-        Scaffold tmp = new Scaffold("tmp", 1, 1);
-        tmp.setOriginalStart(genomicPos);
-        int idx = Collections.binarySearch(listOfOSortedAggregateScaffolds, tmp, Scaffold.originalStateComparator);
-        if (-idx - 2 >= 0) {
-            return listOfOSortedAggregateScaffolds.get(-idx - 2);
+        // allocation-free equivalent of Collections.binarySearch with a probe Scaffold
+        // (originalStart = genomicPos, length = 1) and the original -idx - 2 mapping:
+        // a comparator-equal hit (equal start and length 1) yields null, otherwise the
+        // scaffold just before the insertion point is returned
+        List<Scaffold> list = listOfOSortedAggregateScaffolds;
+        int lo = 0, hi = list.size() - 1;
+        while (lo <= hi) {
+            int mid = (lo + hi) >>> 1;
+            long start = list.get(mid).getOriginalStart();
+            if (start < genomicPos) {
+                lo = mid + 1;
+            } else if (start > genomicPos) {
+                hi = mid - 1;
+            } else {
+                // equal starts are sorted by descending length, so the run's last element
+                // is the insertion point - 1 for the length-1 probe
+                while (mid + 1 < list.size() && list.get(mid + 1).getOriginalStart() == genomicPos) {
+                    mid++;
+                }
+                return list.get(mid).getLength() == 1 ? null : list.get(mid);
+            }
         }
-        else
-            return null;
-
+        return hi >= 0 ? list.get(hi) : null;
     }
 }

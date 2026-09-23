@@ -381,6 +381,16 @@ public class SuperAdapter {
         hic.clearAllMatrixZoomDataCache();
     }
 
+    public void safeClearAllModifiedMZDCache() {
+        Runnable runnable = new Runnable() {
+            public void run() {
+                hic.clearAllModifiedMatrixZoomDataCache();
+                refresh();
+            }
+        };
+        executeLongRunningTask(runnable, "Assembly clear modified MZD cache");
+    }
+
     private void refreshMainOnly() {
         mainViewPanel.getHeatmapPanel().clearTileCache();
         repaint();

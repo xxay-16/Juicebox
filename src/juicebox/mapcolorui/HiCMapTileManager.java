@@ -36,6 +36,7 @@ import org.broad.igv.util.ObjectCache;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferInt;
 
 public class HiCMapTileManager {
     private static final int imageTileWidth = 500;
@@ -93,7 +94,14 @@ public class HiCMapTileManager {
             g2D.fillRect(0, 0, imageWidth, imageHeight);
         }
 
-        HeatmapRenderer renderer = new HeatmapRenderer(g2D, colorScaleHandler);
+        // hand the renderer the int-packed raster when available so single-pixel
+        // contact fills skip the Graphics2D pipeline; otherwise render as before
+        int[] pixelData = null;
+        if (image.getRaster().getDataBuffer() instanceof DataBufferInt) {
+            pixelData = ((DataBufferInt) image.getRaster().getDataBuffer()).getData();
+        }
+
+        HeatmapRenderer renderer = new HeatmapRenderer(g2D, colorScaleHandler, pixelData, imageWidth, imageHeight);
         if (!renderer.render(bx0, by0, imageWidth, imageHeight,
                 zd, controlZd, displayOption,
                 obsNormalizationType, ctrlNormalizationType,

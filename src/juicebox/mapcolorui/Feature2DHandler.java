@@ -195,10 +195,13 @@ public class Feature2DHandler {
 
     public List<Feature2D> getNearbyFeatures(MatrixZoomData zd, int chrIdx1, int chrIdx2, int x, int y, int n,
                                              final double binOriginX, final double binOriginY, final double scale) {
-        final List<Feature2D> foundFeatures = new ArrayList<>();
         final String key = Feature2DList.getKey(chrIdx1, chrIdx2);
         final HiCGridAxis xAxis = zd.getXGridAxis();
         final HiCGridAxis yAxis = zd.getYGridAxis();
+        // called on the EDT during painting, so presize to avoid repeated growth copies
+        final List<Feature2D> foundFeatures = sparseFeaturePlottingEnabled
+                ? new ArrayList<>(n)
+                : new ArrayList<>(Math.max(10, loopList.get(key) == null ? 10 : loopList.get(key).size()));
 
 
         if (featureRtrees.containsKey(key) && layerVisible) {
