@@ -1173,6 +1173,13 @@ public class HeatmapRenderer {
 
     private void renderSimpleMap(List<Block> blocks, ColorScale cs,
                                  int width, int height, boolean sameChr, int originX, int originY) {
+        // fast path: when writing directly into the raster, consecutive records on the
+        // same row that share a color can be filled in one Arrays.fill instead of one
+        // pixel write per record. BinReader emits records row-major, so runs are common.
+        if (directPixels != null) {
+            renderSimpleMapBatched(blocks, cs, width, height, sameChr, originX, originY);
+            return;
+        }
         for (Block b : blocks) {
             int[] binXArr = b.getBinXArray();
             int[] binYArr = b.getBinYArray();
@@ -1182,6 +1189,78 @@ public class HeatmapRenderer {
                 simplePainting(cs, width, height, sameChr, originX, originY, binXArr[i], binYArr[i], countsArr[i]);
             }
         }
+    }
+
+    /**
+     * Batched variant of renderSimpleMap for the direct-raster path. Records are
+     * row-major, so consecutive records on the same binY whose colors are equal
+     * are written with a single Arrays.fill run instead of one pixel write each.
+     * The mirrored (below-diagonal) pixels are filled the same way when sameChr.
+     */
+    private void renderSimpleMapBatched(List<Block> blocks, ColorScale cs,
+                                        int width, int height, boolean sameChr, int originX, int originY) {
+        int w = directPixelWidth;
+        int h = directPixelHeight;
+        for (Block b : blocks) {
+            int[] binXArr = b.getBinXArray();
+            int[] binYArr = b.getBinYArray();
+            float[] countsArr = b.getCountsArray();
+            int n = b.size();
+            int i = 0;
+            while (i < n) {
+                float score = countsArr[i];
+                if (Float.isNaN(score) || Float.isInfinite(score)) {
+                    i++;
+                    continue;
+                }
+                int color = cs.getColor(score).getRGB();
+                int rowY = binYArr[i];
+                int runStart = i;
+                int runBinXStart = binXArr[i];
+                int runBinXEnd = runBinXStart;
+                // extend the run while the row stays the same and the color matches
+                int j = i + 1;
+                while (j < n && binYArr[j] == rowY) {
+                    float s2 = countsArr[j];
+                    if (Float.isNaN(s2) || Float.isInfinite(s2)) break;
+                    if (cs.getColor(s2).getRGB() != color) break;
+                    // only extend if the next binX continues the run contiguously
+                    if (binXArr[j] != runBinXEnd + 1) break;
+                    runBinXEnd = binXArr[j];
+                    j++;
+                }
+                // paint the run (above diagonal): binX range on row binY
+                fillRun(rowY, runBinXStart, runBinXEnd, color, originX, originY, width, height, w, h);
+                if (sameChr) {
+                    // mirrored run: rows become columns; only when binX != binY per record
+                    // handle per-record to preserve the binX != binY skip semantics
+                    for (int k = runStart; k < j; k++) {
+                        int bx = binXArr[k];
+                        int by = binYArr[k];
+                        if (bx != by) {
+                            // mirrored single pixel at (by, bx)
+                            int px = by - originX;
+                            int py = bx - originY;
+                            if (px >= 0 && py >= 0 && px < w && py < h) {
+                                directPixels[py * w + px] = color;
+                            }
+                        }
+                    }
+                }
+                i = j;
+            }
+        }
+    }
+
+    private void fillRun(int binY, int binXStart, int binXEnd, int color, int originX, int originY,
+                         int width, int height, int w, int h) {
+        int py = binY - originY;
+        if (py < 0 || py >= h) return;
+        int px0 = Math.max(binXStart - originX, 0);
+        int px1 = Math.min(binXEnd - originX, w - 1);
+        if (px0 > px1) return;
+        int base = py * w;
+        java.util.Arrays.fill(directPixels, base + px0, base + px1 + 1, color);
     }
 
     private void renderSimpleLogMap(List<Block> blocks, ColorScale cs,
