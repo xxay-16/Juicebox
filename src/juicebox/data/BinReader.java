@@ -36,9 +36,12 @@ public class BinReader {
     private static void ensureRecordCapacity(LittleEndianInputStream dis, List<ContactRecord> records,
                                              int minBytesPerRecord) throws IOException {
         // type 1 blocks can hold more records than the nRecords hint in the block header;
-        // presize from the remaining payload bytes so the list never grows by copying
+        // presize from the remaining payload bytes so the list never grows by copying.
+        // each row also carries 4 bytes of row header, so the min-bytes bound overestimates
+        // by a few percent at typical densities - scale the bound down to avoid that waste
         if (records instanceof ArrayList) {
-            ((ArrayList<ContactRecord>) records).ensureCapacity(dis.available() / minBytesPerRecord + 8);
+            long estimate = dis.available() / minBytesPerRecord + 8;
+            ((ArrayList<ContactRecord>) records).ensureCapacity((int) Math.min(Integer.MAX_VALUE, estimate * 9 / 10));
         }
     }
 
