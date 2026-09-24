@@ -989,7 +989,9 @@ public class DatasetReaderV2 extends AbstractDatasetReader {
 
                 LittleEndianInputStream dis = new LittleEndianInputStream(new ByteArrayInputStream(buffer));
                 int nRecords = dis.readInt();
-                List<ContactRecord> records = new ArrayList<>(nRecords);
+                // nRecords is an upper bound that overestimates by a few tenths of a percent in
+                // practice (per-row overhead), so presize to 90% of it like BinReader does
+                List<ContactRecord> records = new ArrayList<>((int) Math.min(Integer.MAX_VALUE, nRecords * 9L / 10));
                 timeDiffThings[4] = System.currentTimeMillis();
 
                 if (version < 7) {

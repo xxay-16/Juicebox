@@ -87,14 +87,14 @@ public class AssemblyHeatmapHandler {
         double mapScale = HiCGlobals.hicMapScale;
         int version = assemblyDataVersion;
         AlteredBinTable table = alteredBinTable;
-        if (table != null && table.version == version && table.binSize == binSize && table.mapScale == mapScale
-                && table.minBins >= maxBin) {
+        if (table != null && table.bins != null && table.version == version && table.binSize == binSize
+                && table.mapScale == mapScale && table.minBins >= maxBin) {
             return table;
         }
         synchronized (tableLock) {
             table = alteredBinTable;
-            if (table == null || table.version != version || table.binSize != binSize || table.mapScale != mapScale
-                    || table.minBins < maxBin) {
+            if (table == null || table.bins == null || table.version != version || table.binSize != binSize
+                    || table.mapScale != mapScale || table.minBins < maxBin) {
                 table = buildAlteredBinTable(binSize, mapScale, maxBin);
                 alteredBinTable = table;
             }
@@ -138,7 +138,7 @@ public class AssemblyHeatmapHandler {
 
         List<ContactRecord> alteredContacts = new ArrayList<>(block.getContactRecords().size());
         int[] table = null;
-        if (listOfOSortedAggregateScaffolds.size() > 1) {
+        if (!listOfOSortedAggregateScaffolds.isEmpty()) {
             AlteredBinTable alteredBinTable = getAlteredBinTable(binSize, maxBin);
             if (alteredBinTable.bins != null) {
                 table = alteredBinTable.bins;
