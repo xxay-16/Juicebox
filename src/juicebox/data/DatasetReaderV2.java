@@ -24,6 +24,7 @@
 
 package juicebox.data;
 import juicebox.core.data.Block;
+import juicebox.core.io.BinReader;
 import juicebox.core.data.ContactRecord;
 
 

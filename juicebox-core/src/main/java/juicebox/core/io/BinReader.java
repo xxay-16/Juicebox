@@ -22,7 +22,7 @@
  *  THE SOFTWARE.
  */
 
-package juicebox.data;
+package juicebox.core.io;
 import juicebox.core.data.ContactRecord;
 
 import htsjdk.tribble.util.LittleEndianInputStream;
