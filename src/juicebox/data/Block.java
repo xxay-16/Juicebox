@@ -117,6 +117,14 @@ public class Block {
     }
 
     /**
+     * Key for the i-th record, identical to ContactRecord.getKey(normalizationType),
+     * generated straight from the arrays so callers do not need to materialize a record.
+     */
+    public String getKey(int i, juicebox.windowui.NormalizationType normalizationType) {
+        return binX[i] + "_" + binY[i] + "_" + normalizationType;
+    }
+
+    /**
      * Compatibility accessor. Returns a lazily-created list view over the columnar
      * storage; creating the view materializes one ContactRecord per record, so hot
      * paths should use the array accessors instead. The view is live (reflects the
