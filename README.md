@@ -21,29 +21,42 @@ We also have new tools:
 本仓库：Windows / JDK 25 构建与性能优化版
 --------------
 基于 Juicebox v2.17.00（commit c7b6988），在 Windows 上以 JDK 25 + Ant 构建，
-并针对装配编辑（JBAT 工作流）与热图渲染做了以下性能优化。
-基线为提交 `b17f0e8`，优化版为 `f8ea3fb`，两者可随时对照。
+针对装配编辑（JBAT 工作流）与热图渲染做了多轮性能优化。
+版本对照：基线 `b17f0e8` → 优化主提交 `f8ea3fb` → 当前 `d1de0ae`。
 
 性能优化清单（均有等价性验证）
-- 装配块坐标变换 modifyBlock：预计算 bin->bin 映射表（按 scaffold 版本、binSize、
-  hicMapScale 失效重建），变换速度约 5x（200 万条记录 ~180ms -> ~30ms），
-  输出与原实现逐位一致（含 AllByAll、精确起点、长度 1 scaffold、越界 bin 等边界用例）。
+
+坐标变换与块缓存
+- modifyBlock 预计算 bin->bin 映射表：按（scaffold 版本、binSize、hicMapScale）
+  失效重建；修复了 scaffold 数量守卫 bug（聚合为 1 个 scaffold 时表此前不会
+  构建，导致每条记录仍走逐条二分）。变换约 5x（200 万条 ~180ms -> ~25ms），
+  输出与原实现逐位一致（含 AllByAll、精确起点、长度 1 scaffold、越界 bin）。
 - 原始块缓存跨装配编辑保留：移动/翻转 scaffold 后只失效变换后的块，
   不再重复磁盘 I/O + 解压 + 解析；编辑周期实测 159.7ms -> ~2ms。
+- modifyBlock 恒等映射复用原 ContactRecord：未移动的 scaffold 不再重复分配
+  对象，单次剖析会话观测到 1.7GB 的对象分配由此消除。
+
+渲染
 - 热图 tile 直写像素：contact 单像素填充直接写入 tile 栅格 int[]，
   绕过 Graphics2D 状态机；渲染突发期 fillRect 家族开销 ~18% -> ~9.6%。
 - 小地图（minimap）直写像素 + 状态缓存：原实现每次全量重渲染最粗 zoom 整层
-  （装配视图为 9560x9560 bins、约 3800 万条记录）且走慢速 Graphics 路径，
+  （装配视图 9560x9560 bins、约 3800 万条记录）且走慢速 Graphics 路径，
   是加载后遮罩迟迟不解除的原因；现按视图状态缓存，渲染走直写路径。
-- Feature2DHandler.getNearbyFeatures 结果列表预分配（EDT 绘制期不再反复扩容拷贝）。
-- BinReader 稀疏块解析按负载字节上界预分配容量（防御 nRecords 字段低估的病态块）。
-- modifyBlock 恒等映射复用原 ContactRecord（未移动的 scaffold 不再重复分配对象，
-  单次剖析会话观测到 1.7GB 的对象分配由此消除）；映射表扩长覆盖整条染色体网格，
-  尾部 bin 不再走逐条二分兜底。
+
+解析与分配
+- BinReader / DatasetReaderV2 按实际记录密度预分配容量（0.9 系数校准），
+  常态块浪费降约 90% 且不再反复扩容拷贝。
+- Feature2DHandler.getNearbyFeatures 结果列表预分配（EDT 绘制期不再反复扩容）。
+
+实测效果（genome.hic 装配编辑会话，JFR 对比）
+- 装配坐标查找 lookUpOriginalAggregateScaffold：174 样本 -> 0（完全走数组查表）。
+- Object[] 分配：702 次 / 1.8GB -> 561 次 / 1.4GB（单次会话）。
+- 编辑后重渲染开销主要集中在必要的 tile 重画（直写路径），无逐条二分。
 
 验证方式
 - juicebox.tools.HiCTools dump 输出与优化前逐字节一致（退出码 0）。
-- modifyBlock 合成基准校验和与原实现一致；各 zoom 块加载记录数与优化前逐一相同。
+- modifyBlock 合成基准校验和与原实现一致；扩展表与兜底路径逐元素比对一致；
+  各 zoom 块加载记录数与优化前逐一相同。
 - GUI 在 inter.hic 与 genome.hic 上目检渲染正常（主热图、小地图、装配色块）。
 
 构建（Windows / JDK 25）
