@@ -25,8 +25,10 @@
 package juicebox.assembly;
 
 import juicebox.HiCGlobals;
-import juicebox.data.Block;
-import juicebox.data.ContactRecord;
+import juicebox.core.assembly.AssemblyTransform;
+import juicebox.core.assembly.ScaffoldData;
+import juicebox.core.data.Block;
+import juicebox.core.data.ContactRecord;
 import juicebox.gui.SuperAdapter;
 
 import java.util.ArrayList;
@@ -45,25 +47,12 @@ public class AssemblyHeatmapHandler {
     //    Does not seem to offer much advantage
 //    private static Scaffold guessScaffold = null;
 
-    // bin -> altered-bin lookup table, rebuilt when (version, binSize, hicMapScale) changes;
-    // turns the per-record scaffold binary search into an array read
+    // core transform cache, rebuilt on (assembly version, binSize, maxBin) change
     private static final Object tableLock = new Object();
-    private static volatile AlteredBinTable alteredBinTable = null;
-
-    private static final class AlteredBinTable {
-        final int[] bins;
-        final int version, binSize;
-        final double mapScale;
-        final int minBins;   // bins covered (bins.length, 0 for the fallback marker)
-
-        AlteredBinTable(int[] bins, int version, int binSize, double mapScale, int minBins) {
-            this.bins = bins;
-            this.version = version;
-            this.binSize = binSize;
-            this.mapScale = mapScale;
-            this.minBins = minBins;
-        }
-    }
+    private static volatile AssemblyTransform cachedTransform = null;
+    private static volatile int cachedTransformBinSize = -1;
+    private static volatile int cachedTransformMaxBin = -1;
+    private static volatile int cachedTransformVersion = -1;
 
     public static void setListOfOSortedAggregateScaffolds(List<Scaffold> listOfAggregateScaffolds) {
         AssemblyHeatmapHandler.listOfOSortedAggregateScaffolds = new ArrayList<>(listOfAggregateScaffolds);
@@ -83,44 +72,6 @@ public class AssemblyHeatmapHandler {
         AssemblyHeatmapHandler.superAdapter = superAdapter;
     }
 
-    private static AlteredBinTable getAlteredBinTable(int binSize, int maxBin) {
-        double mapScale = HiCGlobals.hicMapScale;
-        int version = assemblyDataVersion;
-        AlteredBinTable table = alteredBinTable;
-        if (table != null && table.bins != null && table.version == version && table.binSize == binSize
-                && table.mapScale == mapScale && table.minBins >= maxBin) {
-            return table;
-        }
-        synchronized (tableLock) {
-            table = alteredBinTable;
-            if (table == null || table.bins == null || table.version != version || table.binSize != binSize
-                    || table.mapScale != mapScale || table.minBins < maxBin) {
-                table = buildAlteredBinTable(binSize, mapScale, maxBin);
-                alteredBinTable = table;
-            }
-            return table;
-        }
-    }
-
-    private static AlteredBinTable buildAlteredBinTable(int binSize, double mapScale, int maxBin) {
-        List<Scaffold> scaffolds = listOfOSortedAggregateScaffolds;
-        long lastOriginalEnd = scaffolds.get(scaffolds.size() - 1).getOriginalEnd();
-        long numBins = (long) ((lastOriginalEnd - 1) / (mapScale * binSize)) + 3;
-        if (maxBin + 2 > numBins) {
-            // cover the full chromosome grid so trailing bins skip the per-record fallback
-            numBins = maxBin + 2;
-        }
-        if (numBins > 100_000_000) {
-            // pathological assembly or zoom; fall back to per-record lookups
-            return new AlteredBinTable(null, -1, -1, Double.NaN, 0);
-        }
-        int[] bins = new int[(int) numBins];
-        for (int bin = 0; bin < bins.length; bin++) {
-            bins[bin] = computeAlteredAsmBin(bin, binSize, mapScale);
-        }
-        return new AlteredBinTable(bins, assemblyDataVersion, binSize, mapScale, bins.length);
-    }
-
     public static Block modifyBlock(Block block, String key, int binSize, int chr1Idx, int chr2Idx) {
         return modifyBlock(block, key, binSize, chr1Idx, chr2Idx, -1);
     }
@@ -136,111 +87,35 @@ public class AssemblyHeatmapHandler {
             return block;
         }
 
-        List<ContactRecord> alteredContacts = null;
-        int[] table = null;
-        if (!listOfOSortedAggregateScaffolds.isEmpty()) {
-            AlteredBinTable alteredBinTable = getAlteredBinTable(binSize, maxBin);
-            if (alteredBinTable.bins != null) {
-                table = alteredBinTable.bins;
-            }
+        // delegate to the core transform (bit-identical algorithm), cached per
+        // (assembly version, binSize, maxBin)
+        AssemblyTransform transform = getTransform(binSize, maxBin);
+        return transform.apply(block, key);
+    }
+
+    private static AssemblyTransform getTransform(int binSize, int maxBin) {
+        int version = assemblyDataVersion;
+        AssemblyTransform t = cachedTransform;
+        if (t != null && cachedTransformVersion == version && cachedTransformBinSize == binSize
+                && cachedTransformMaxBin >= maxBin) {
+            return t;
         }
-
-        // columnar transform: read and write the primitive arrays directly, no per-record objects
-        int n = block.size();
-        int[] srcBinX = block.getBinXArray();
-        int[] srcBinY = block.getBinYArray();
-        float[] srcCounts = block.getCountsArray();
-        int[] outBinX = new int[n];
-        int[] outBinY = new int[n];
-        float[] outCounts = new float[n];
-        int out = 0;
-        for (int i = 0; i < n; i++) {
-            int binX = srcBinX[i];
-            int binY = srcBinY[i];
-            int alteredAsmBinX = lookupAlteredBin(binX, binSize, table);
-            int alteredAsmBinY = lookupAlteredBin(binY, binSize, table);
-
-            if (alteredAsmBinX == -1 || alteredAsmBinY == -1) {
-                outBinX[out] = binX;
-                outBinY[out] = binY;
-                outCounts[out] = srcCounts[i];
-                out++;
-            } else if (alteredAsmBinX == binX && alteredAsmBinY == binY) {
-                // identity mapping (scaffolds that were not moved or inverted)
-                outBinX[out] = binX;
-                outBinY[out] = binY;
-                outCounts[out] = srcCounts[i];
-                out++;
-            } else {
-                if (alteredAsmBinX > alteredAsmBinY) {
-                    outBinX[out] = alteredAsmBinY;
-                    outBinY[out] = alteredAsmBinX;
-                } else {
-                    outBinX[out] = alteredAsmBinX;
-                    outBinY[out] = alteredAsmBinY;
+        synchronized (tableLock) {
+            t = cachedTransform;
+            if (t == null || cachedTransformVersion != version || cachedTransformBinSize != binSize
+                    || cachedTransformMaxBin < maxBin) {
+                List<ScaffoldData> scaffoldData = new ArrayList<>(listOfOSortedAggregateScaffolds.size());
+                for (Scaffold scaffold : listOfOSortedAggregateScaffolds) {
+                    scaffoldData.add(scaffold.toScaffoldData());
                 }
-                outCounts[out] = srcCounts[i];
-                out++;
+                t = new AssemblyTransform(scaffoldData, binSize, HiCGlobals.hicMapScale, maxBin);
+                cachedTransform = t;
+                cachedTransformVersion = version;
+                cachedTransformBinSize = binSize;
+                cachedTransformMaxBin = maxBin;
             }
+            return t;
         }
-        block = new Block(block.getNumber(), outBinX, outBinY, outCounts, out, key);
-        return block;
     }
 
-    private static int lookupAlteredBin(int binValue, int binSize, int[] table) {
-        if (table != null && binValue >= 0 && binValue < table.length) {
-            return table[binValue];
-        }
-        return getAlteredAsmBin(binValue, binSize);
-    }
-
-
-
-    private static int getAlteredAsmBin(int binValue, int binSize) {
-        return computeAlteredAsmBin(binValue, binSize, HiCGlobals.hicMapScale);
-    }
-
-    private static int computeAlteredAsmBin(int binValue, int binSize, double mapScale) {
-
-        long originalFirstNucleotide = (long) (binValue * mapScale * binSize + 1);
-        long currentFirstNucleotide;
-        Scaffold aggregateScaffold = lookUpOriginalAggregateScaffold(originalFirstNucleotide);
-
-        if (aggregateScaffold != null) {
-            if (!aggregateScaffold.getInvertedVsInitial()) {
-                currentFirstNucleotide = (aggregateScaffold.getCurrentStart() + originalFirstNucleotide - aggregateScaffold.getOriginalStart());
-            } else {
-                currentFirstNucleotide = (aggregateScaffold.getCurrentEnd() - originalFirstNucleotide + 2 - (long) (mapScale * binSize) + aggregateScaffold.getOriginalStart());
-            }
-
-            return (int) ((currentFirstNucleotide - 1) / (mapScale * binSize));
-        }
-        return -1;
-    }
-
-    private static Scaffold lookUpOriginalAggregateScaffold(long genomicPos) {
-        // allocation-free equivalent of Collections.binarySearch with a probe Scaffold
-        // (originalStart = genomicPos, length = 1) and the original -idx - 2 mapping:
-        // a comparator-equal hit (equal start and length 1) yields null, otherwise the
-        // scaffold just before the insertion point is returned
-        List<Scaffold> list = listOfOSortedAggregateScaffolds;
-        int lo = 0, hi = list.size() - 1;
-        while (lo <= hi) {
-            int mid = (lo + hi) >>> 1;
-            long start = list.get(mid).getOriginalStart();
-            if (start < genomicPos) {
-                lo = mid + 1;
-            } else if (start > genomicPos) {
-                hi = mid - 1;
-            } else {
-                // equal starts are sorted by descending length, so the run's last element
-                // is the insertion point - 1 for the length-1 probe
-                while (mid + 1 < list.size() && list.get(mid + 1).getOriginalStart() == genomicPos) {
-                    mid++;
-                }
-                return list.get(mid).getLength() == 1 ? null : list.get(mid);
-            }
-        }
-        return hi >= 0 ? list.get(hi) : null;
-    }
 }

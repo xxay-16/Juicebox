@@ -25,7 +25,7 @@
 package juicebox.matrix;
 
 
-import juicebox.data.ContactRecord;
+import juicebox.core.data.ContactRecord;
 import org.broad.igv.util.collections.FloatArrayList;
 import org.broad.igv.util.collections.IntArrayList;
 

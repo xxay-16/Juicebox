@@ -23,6 +23,7 @@
  */
 
 package juicebox.mapcolorui;
+import juicebox.core.data.Block;
 
 import juicebox.HiC;
 import juicebox.HiCGlobals;

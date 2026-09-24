@@ -22,9 +22,7 @@
  *  THE SOFTWARE.
  */
 
-package juicebox.data;
-
-import juicebox.windowui.NormalizationType;
+package juicebox.core.data;
 
 import java.util.Objects;
 
@@ -102,7 +100,7 @@ public class ContactRecord implements Comparable<ContactRecord> {
     }
 
 
-    public String getKey(NormalizationType normalizationType) {
+    public String getKey(Object normalizationType) {
         return binX + "_" + binY + "_" + normalizationType;
     }
 }

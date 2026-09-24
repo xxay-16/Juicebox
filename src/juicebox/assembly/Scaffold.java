@@ -219,6 +219,17 @@ public class Scaffold extends Feature implements Comparable<Scaffold> {
         return currentStart + length;
     }
 
+    /**
+     * UI-free snapshot used by the core coordinate transform. Decouples the
+     * algorithm from this desktop Scaffold (which carries colors and features).
+     */
+    public juicebox.core.assembly.ScaffoldData toScaffoldData() {
+        return new juicebox.core.assembly.ScaffoldData(
+                getOriginalStart(), getOriginalEnd(),
+                getCurrentStart(), getCurrentEnd(),
+                getLength(), getInvertedVsInitial());
+    }
+
     public void toggleInversion() {
         isInvertedVsInitial = !isInvertedVsInitial;
     }

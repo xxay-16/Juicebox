@@ -24,6 +24,8 @@
 
 
 package juicebox.data;
+import juicebox.core.data.Block;
+import juicebox.core.data.ContactRecord;
 
 import htsjdk.tribble.util.LittleEndianOutputStream;
 import juicebox.HiC;

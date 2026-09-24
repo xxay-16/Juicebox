@@ -23,6 +23,7 @@
  */
 
 package juicebox.matrix;
+import juicebox.core.data.Block;
 
 import htsjdk.samtools.seekablestream.SeekableStream;
 import htsjdk.samtools.seekablestream.SeekableStreamFactory;

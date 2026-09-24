@@ -23,6 +23,7 @@
  */
 
 package juicebox.tools.utils.norm;
+import juicebox.core.data.ContactRecord;
 
 import juicebox.data.DatasetReaderV2;
 import juicebox.tools.utils.original.LargeIndexEntry;

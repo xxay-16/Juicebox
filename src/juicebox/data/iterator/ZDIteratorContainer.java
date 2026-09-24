@@ -24,8 +24,8 @@
 
 package juicebox.data.iterator;
 
-import juicebox.data.Block;
-import juicebox.data.ContactRecord;
+import juicebox.core.data.Block;
+import juicebox.core.data.ContactRecord;
 import juicebox.data.DatasetReader;
 import juicebox.data.MatrixZoomData;
 import juicebox.data.basics.ListOfDoubleArrays;

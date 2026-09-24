@@ -237,6 +237,11 @@
         <dirset dir="${module.juicebox.basedir}">
             <include name="src"/>
         </dirset>
+        <!-- the juicebox-core module sources are compiled together with the app so the
+             Ant build sees the same code as the Gradle core module -->
+        <dirset dir="${module.juicebox.basedir}">
+            <include name="juicebox-core/src/main/java"/>
+        </dirset>
     </path>
 
 

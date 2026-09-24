@@ -23,6 +23,7 @@
  */
 
 package juicebox.data;
+import juicebox.core.data.Block;
 
 import juicebox.HiC;
 import juicebox.data.basics.ListOfDoubleArrays;

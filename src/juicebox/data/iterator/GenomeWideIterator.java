@@ -23,6 +23,7 @@
  */
 
 package juicebox.data.iterator;
+import juicebox.core.data.ContactRecord;
 
 import juicebox.data.*;
 import juicebox.data.basics.Chromosome;

@@ -22,7 +22,7 @@
  *  SOFTWARE.
  */
 
-package juicebox.data;
+package juicebox.core.data;
 
 //import java.awt.*;
 //import java.util.List;
@@ -120,7 +120,7 @@ public class Block {
      * Key for the i-th record, identical to ContactRecord.getKey(normalizationType),
      * generated straight from the arrays so callers do not need to materialize a record.
      */
-    public String getKey(int i, juicebox.windowui.NormalizationType normalizationType) {
+    public String getKey(int i, Object normalizationType) {
         return binX[i] + "_" + binY[i] + "_" + normalizationType;
     }
 

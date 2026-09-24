@@ -25,8 +25,8 @@
 package juicebox.mapcolorui;
 
 import juicebox.HiCGlobals;
-import juicebox.data.Block;
-import juicebox.data.ContactRecord;
+import juicebox.core.data.Block;
+import juicebox.core.data.ContactRecord;
 import juicebox.gui.SuperAdapter;
 import juicebox.matrix.BasicMatrix;
 import juicebox.windowui.MatrixType;
