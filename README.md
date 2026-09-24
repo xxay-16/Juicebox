@@ -15,7 +15,10 @@ src/juicebox/      桌面应用（Ant 构建），通过 core 模块获取算法
 ```
 
 - **构建核心模块并跑测试**：`gradle :juicebox-core:build`（Gradle 9，JDK 25 工具链）
-- **构建桌面应用**：Ant（见下），app 的源码路径已包含 core 源码
+- **构建核心模块并跑测试**：`gradle :juicebox-core:build`（Gradle 9，JDK 25 工具链）
+- **构建桌面应用（uber-jar）**：`gradle :juicebox-app:uberJar`，产物 `out/artifacts/Juicebox_jar/Juicebox.jar`
+
+整个项目统一用 Gradle 构建，不再使用 Ant。
 
 ## 下载（Release v2.17.00-perf）
 
@@ -32,7 +35,7 @@ src/juicebox/      桌面应用（Ant 构建），通过 core 模块获取算法
 
 ```bat
 set JAVA_HOME=D:/runtime/jdk-25
-ant -Dskip.tests=true -Djdk.home.1.8=D:/runtime/jdk-25 all
+gradle :juicebox-app:uberJar
 ```
 
 GUI 产物：`out/artifacts/Juicebox_jar/Juicebox.jar`（uber-JAR 已包含 commons-math3，缺失会导致读取 .hic 时 `NoClassDefFoundError`）。
