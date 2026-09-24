@@ -23,6 +23,7 @@
  */
 
 package juicebox.tools.clt.old;
+import juicebox.core.data.ContactRecord;
 
 import htsjdk.tribble.util.LittleEndianOutputStream;
 import juicebox.HiC;

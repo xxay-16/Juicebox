@@ -25,7 +25,7 @@
 package juicebox.data.iterator;
 
 import juicebox.data.ChromosomeHandler;
-import juicebox.data.ContactRecord;
+import juicebox.core.data.ContactRecord;
 import juicebox.data.Dataset;
 import juicebox.data.basics.Chromosome;
 import juicebox.data.basics.ListOfFloatArrays;

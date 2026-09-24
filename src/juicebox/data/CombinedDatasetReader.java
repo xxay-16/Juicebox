@@ -23,6 +23,8 @@
  */
 
 package juicebox.data;
+import juicebox.core.data.Block;
+import juicebox.core.data.ContactRecord;
 
 import juicebox.HiC;
 import juicebox.HiCGlobals;

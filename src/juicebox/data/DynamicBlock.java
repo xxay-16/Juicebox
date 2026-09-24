@@ -23,6 +23,8 @@
  */
 
 package juicebox.data;
+import juicebox.core.data.Block;
+import juicebox.core.data.ContactRecord;
 
 import java.util.ArrayList;
 import java.util.HashSet;

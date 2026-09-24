@@ -23,6 +23,7 @@
  */
 
 package juicebox.tools.utils.original;
+import juicebox.core.data.Block;
 
 //import juicebox.MainWindow;
 

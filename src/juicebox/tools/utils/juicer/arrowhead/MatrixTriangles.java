@@ -23,6 +23,7 @@
  */
 
 package juicebox.tools.utils.juicer.arrowhead;
+import juicebox.core.data.Block;
 
 import juicebox.tools.utils.common.MatrixTools;
 import juicebox.tools.utils.juicer.arrowhead.connectedcomponents.BinaryConnectedComponents;

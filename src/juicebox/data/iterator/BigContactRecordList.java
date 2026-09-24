@@ -24,7 +24,7 @@
 
 package juicebox.data.iterator;
 
-import juicebox.data.ContactRecord;
+import juicebox.core.data.ContactRecord;
 
 import java.util.*;
 

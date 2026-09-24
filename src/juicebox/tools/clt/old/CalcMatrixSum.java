@@ -23,6 +23,7 @@
  */
 
 package juicebox.tools.clt.old;
+import juicebox.core.data.ContactRecord;
 
 import juicebox.data.*;
 import juicebox.data.basics.Chromosome;

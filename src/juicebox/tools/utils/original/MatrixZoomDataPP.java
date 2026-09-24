@@ -23,12 +23,13 @@
  */
 
 package juicebox.tools.utils.original;
+import juicebox.core.data.Block;
 
 import htsjdk.tribble.util.LittleEndianInputStream;
 import htsjdk.tribble.util.LittleEndianOutputStream;
 import juicebox.HiC;
 import juicebox.HiCGlobals;
-import juicebox.data.ContactRecord;
+import juicebox.core.data.ContactRecord;
 import juicebox.data.basics.Chromosome;
 import juicebox.data.v9depth.V9Depth;
 import juicebox.windowui.HiCZoom;

@@ -26,7 +26,7 @@ package juicebox.tools.utils.original;
 
 import juicebox.HiC;
 import juicebox.data.ChromosomeHandler;
-import juicebox.data.ContactRecord;
+import juicebox.core.data.ContactRecord;
 import juicebox.data.basics.Chromosome;
 import juicebox.windowui.HiCZoom;
 

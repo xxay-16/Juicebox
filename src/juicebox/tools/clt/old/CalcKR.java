@@ -24,7 +24,7 @@
 
 package juicebox.tools.clt.old;
 
-import juicebox.data.ContactRecord;
+import juicebox.core.data.ContactRecord;
 import juicebox.data.iterator.IteratorContainer;
 import juicebox.data.iterator.ListIteratorContainer;
 import juicebox.tools.clt.CommandLineParser;

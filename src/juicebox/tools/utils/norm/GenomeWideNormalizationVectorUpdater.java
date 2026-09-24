@@ -23,6 +23,7 @@
  */
 
 package juicebox.tools.utils.norm;
+import juicebox.core.data.ContactRecord;
 
 import juicebox.HiCGlobals;
 import juicebox.data.*;

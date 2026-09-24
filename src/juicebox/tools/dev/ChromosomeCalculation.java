@@ -25,7 +25,7 @@
 package juicebox.tools.dev;
 
 import juicebox.HiCGlobals;
-import juicebox.data.ContactRecord;
+import juicebox.core.data.ContactRecord;
 import juicebox.data.Dataset;
 import juicebox.data.HiCFileTools;
 import juicebox.data.MatrixZoomData;

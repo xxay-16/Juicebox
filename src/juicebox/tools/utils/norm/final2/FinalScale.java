@@ -25,7 +25,7 @@
 package juicebox.tools.utils.norm.final2;
 
 import juicebox.HiCGlobals;
-import juicebox.data.ContactRecord;
+import juicebox.core.data.ContactRecord;
 import juicebox.data.basics.ListOfFloatArrays;
 import juicebox.data.basics.ListOfIntArrays;
 import juicebox.data.iterator.IteratorContainer;

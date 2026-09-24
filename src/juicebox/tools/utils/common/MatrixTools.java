@@ -24,7 +24,7 @@
 
 package juicebox.tools.utils.common;
 
-import juicebox.data.ContactRecord;
+import juicebox.core.data.ContactRecord;
 import juicebox.tools.utils.juicer.apa.APARegionStatistics;
 import org.apache.commons.math.linear.Array2DRowRealMatrix;
 import org.apache.commons.math.linear.RealMatrix;

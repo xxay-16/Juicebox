@@ -23,6 +23,7 @@
  */
 
 package juicebox;
+import juicebox.core.data.ContactRecord;
 
 /**
  * TODO These should probably be deleted, but keeping them until respective author decides/refactors
