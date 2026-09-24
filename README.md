@@ -2,7 +2,20 @@
 
 基于上游 [aidenlab/Juicebox](https://github.com/aidenlab/juicebox) v2.17.00（commit `c7b6988`），在 Windows 上以 JDK 25 + Ant 构建，针对装配编辑（JBAT 工作流）与热图渲染做了多轮性能优化。
 
-版本对照：基线 `b17f0e8` → 优化主提交 `f8ea3fb` → 当前 `b0334e3`。
+版本对照：基线 `b17f0e8` → 优化主提交 `f8ea3fb` → 当前 `cf1eeba`（含模块化重构）。
+
+## 项目结构（模块化）
+
+```
+juicebox-core/     无 UI 依赖的核心模块（Gradle 构建 + JUnit 5 测试）
+  core.data        Block、ContactRecord（列式存储）
+  core.assembly    AssemblyTransform（装配坐标变换）、ScaffoldData
+  core.io          BinReader（.hic 块解析）、BlockNormalizer（归一化）
+src/juicebox/      桌面应用（Ant 构建），通过 core 模块获取算法
+```
+
+- **构建核心模块并跑测试**：`gradle :juicebox-core:build`（Gradle 9，JDK 25 工具链）
+- **构建桌面应用**：Ant（见下），app 的源码路径已包含 core 源码
 
 ## 下载（Release v2.17.00-perf）
 
