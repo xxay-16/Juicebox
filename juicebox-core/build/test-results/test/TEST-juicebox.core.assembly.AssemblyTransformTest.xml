@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="juicebox.core.assembly.AssemblyTransformTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-09-24T10:16:21.893Z" hostname="XXAY" time="0.088">
+  <properties/>
+  <testcase name="emptyScaffoldListPassesThrough()" classname="juicebox.core.assembly.AssemblyTransformTest" time="0.067"/>
+  <testcase name="identityBinsPassThrough()" classname="juicebox.core.assembly.AssemblyTransformTest" time="0.013"/>
+  <testcase name="swapIsNormalizedToUpperTriangle()" classname="juicebox.core.assembly.AssemblyTransformTest" time="0.005"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
