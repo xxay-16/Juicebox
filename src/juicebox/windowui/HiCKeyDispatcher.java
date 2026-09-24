@@ -26,7 +26,7 @@ package juicebox.windowui;
 
 import juicebox.HiC;
 import juicebox.HiCGlobals;
-import juicebox.data.HiCFileLoader;
+import juicebox.gui.HiCFileLoader;
 import juicebox.gui.SuperAdapter;
 import juicebox.tools.dev.Private;
 import juicebox.track.feature.AnnotationLayerHandler;

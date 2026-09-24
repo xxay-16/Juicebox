@@ -22,9 +22,10 @@
  *  THE SOFTWARE.
  */
 
-package juicebox.data;
+package juicebox.gui;
 
 import juicebox.HiCGlobals;
+import juicebox.data.HiCFileTools;
 import juicebox.gui.SuperAdapter;
 import juicebox.windowui.LoadDialog;
 import juicebox.windowui.RecentMenu;
