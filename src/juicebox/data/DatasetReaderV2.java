@@ -946,31 +946,17 @@ public class DatasetReaderV2 extends AbstractDatasetReader {
             Block rawBlock = readBlock(blockNumber, zd);
             timeDiffThings[2] = System.currentTimeMillis();
             if (rawBlock == null) return null;
-    
-            // normalize straight from the columnar arrays, fusing the copy into one pass
-            int n = rawBlock.size();
-            int[] srcBinX = rawBlock.getBinXArray();
-            int[] srcBinY = rawBlock.getBinYArray();
-            float[] srcCounts = rawBlock.getCountsArray();
-            int[] normBinX = new int[n];
-            int[] normBinY = new int[n];
-            float[] normCounts = new float[n];
-            int out = 0;
-            for (int i = 0; i < n; i++) {
-                int x = srcBinX[i];
-                int y = srcBinY[i];
-                double denominator = nv1Data.get(x) * nv2Data.get(y);
-                float counts = (float) (srcCounts[i] / denominator);
-                if (!Float.isNaN(counts)) {
-                    normBinX[out] = x;
-                    normBinY[out] = y;
-                    normCounts[out] = counts;
-                    out++;
-                }
-            }
+
+            // delegate to the core normalizer (bit-identical math), adapting the
+            // app's ListOfDoubleArrays to the core's minimal indexed interface
+            Block normalized = juicebox.core.io.BlockNormalizer.normalize(
+                    rawBlock,
+                    idx -> nv1Data.get(idx),
+                    idx -> nv2Data.get(idx),
+                    zd.getBlockKey(blockNumber, no));
             timeDiffThings[3] = System.currentTimeMillis();
 
-            return new Block(blockNumber, normBinX, normBinY, normCounts, out, zd.getBlockKey(blockNumber, no));
+            return normalized;
         }
     }
 
