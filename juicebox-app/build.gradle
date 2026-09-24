@@ -1,0 +1,56 @@
+plugins {
+    id 'java'
+}
+
+// juicebox-app: the Swing desktop application. Depends on juicebox-core for the
+// columnar data structures and algorithms; bundles all lib/ jars like the Ant
+// build did.
+
+sourceSets {
+    main {
+        java {
+            // the desktop sources live in the top-level src/ directory, not the
+            // module's own src/ - point the source set there and exclude nothing
+            srcDirs = ["${rootDir}/src"]
+        }
+        resources {
+            srcDirs = ["${rootDir}/src"]
+            // resource patterns the Ant build copied over (sizes files, images, etc.)
+            includes = ['**/*.sizes', '**/images/**', '**/*.png', '**/*.gif',
+                        '**/*.jpg', '**/*.icns', '**/*.txt', '**/*.properties',
+                        '**/*.xml', '**/*.bed', '**/*.cys', '**/*.json']
+        }
+    }
+}
+
+dependencies {
+    implementation project(':juicebox-core')
+    implementation fileTree(dir: "${rootDir}/lib", include: '**/*.jar')
+}
+
+// main entry point for the runnable application
+tasks.register('runApp', JavaExec) {
+    group = 'application'
+    description = 'Runs the Juicebox desktop GUI'
+    mainClass = 'juicebox.MainWindow'
+    classpath = sourceSets.main.runtimeClasspath
+    jvmArgs = ['-Xmx8g']
+}
+
+// runnable uber-jar bundling the app, juicebox-core, and every lib/ jar
+// (matches what the Ant 'all' target produced)
+tasks.register('uberJar', Jar) {
+    group = 'build'
+    description = 'Builds the runnable Juicebox uber-jar'
+    archiveBaseName = 'Juicebox'
+    archiveVersion = ''
+    destinationDirectory = file("${rootDir}/out/artifacts/Juicebox_jar")
+    manifest {
+        attributes 'Main-Class': 'juicebox.MainWindow'
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    from(sourceSets.main.output)
+}
