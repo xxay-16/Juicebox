@@ -136,7 +136,7 @@ public class AssemblyHeatmapHandler {
             return block;
         }
 
-        List<ContactRecord> alteredContacts = new ArrayList<>(block.getContactRecords().size());
+        List<ContactRecord> alteredContacts = null;
         int[] table = null;
         if (!listOfOSortedAggregateScaffolds.isEmpty()) {
             AlteredBinTable alteredBinTable = getAlteredBinTable(binSize, maxBin);
@@ -144,31 +144,46 @@ public class AssemblyHeatmapHandler {
                 table = alteredBinTable.bins;
             }
         }
-        for (ContactRecord record : block.getContactRecords()) {
 
-            int binX = record.getBinX();
-            int binY = record.getBinY();
+        // columnar transform: read and write the primitive arrays directly, no per-record objects
+        int n = block.size();
+        int[] srcBinX = block.getBinXArray();
+        int[] srcBinY = block.getBinYArray();
+        float[] srcCounts = block.getCountsArray();
+        int[] outBinX = new int[n];
+        int[] outBinY = new int[n];
+        float[] outCounts = new float[n];
+        int out = 0;
+        for (int i = 0; i < n; i++) {
+            int binX = srcBinX[i];
+            int binY = srcBinY[i];
             int alteredAsmBinX = lookupAlteredBin(binX, binSize, table);
             int alteredAsmBinY = lookupAlteredBin(binY, binSize, table);
 
             if (alteredAsmBinX == -1 || alteredAsmBinY == -1) {
-                alteredContacts.add(record);
+                outBinX[out] = binX;
+                outBinY[out] = binY;
+                outCounts[out] = srcCounts[i];
+                out++;
             } else if (alteredAsmBinX == binX && alteredAsmBinY == binY) {
-                // identity mapping (scaffolds that were not moved or inverted): reuse the record
-                alteredContacts.add(record);
+                // identity mapping (scaffolds that were not moved or inverted)
+                outBinX[out] = binX;
+                outBinY[out] = binY;
+                outCounts[out] = srcCounts[i];
+                out++;
             } else {
                 if (alteredAsmBinX > alteredAsmBinY) {
-                    alteredContacts.add(new ContactRecord(
-                            alteredAsmBinY,
-                            alteredAsmBinX, record.getCounts()));
+                    outBinX[out] = alteredAsmBinY;
+                    outBinY[out] = alteredAsmBinX;
                 } else {
-                    alteredContacts.add(new ContactRecord(
-                            alteredAsmBinX,
-                            alteredAsmBinY, record.getCounts()));
+                    outBinX[out] = alteredAsmBinX;
+                    outBinY[out] = alteredAsmBinY;
                 }
+                outCounts[out] = srcCounts[i];
+                out++;
             }
         }
-        block = new Block(block.getNumber(), alteredContacts, key);
+        block = new Block(block.getNumber(), outBinX, outBinY, outCounts, out, key);
         return block;
     }
 

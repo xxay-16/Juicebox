@@ -944,20 +944,30 @@ public class DatasetReaderV2 extends AbstractDatasetReader {
             timeDiffThings[2] = System.currentTimeMillis();
             if (rawBlock == null) return null;
     
-            Collection<ContactRecord> records = rawBlock.getContactRecords();
-            List<ContactRecord> normRecords = new ArrayList<>(records.size());
-            for (ContactRecord rec : records) {
-                int x = rec.getBinX();
-                int y = rec.getBinY();
+            // normalize straight from the columnar arrays, fusing the copy into one pass
+            int n = rawBlock.size();
+            int[] srcBinX = rawBlock.getBinXArray();
+            int[] srcBinY = rawBlock.getBinYArray();
+            float[] srcCounts = rawBlock.getCountsArray();
+            int[] normBinX = new int[n];
+            int[] normBinY = new int[n];
+            float[] normCounts = new float[n];
+            int out = 0;
+            for (int i = 0; i < n; i++) {
+                int x = srcBinX[i];
+                int y = srcBinY[i];
                 double denominator = nv1Data.get(x) * nv2Data.get(y);
-                float counts = (float) (rec.getCounts() / denominator);
+                float counts = (float) (srcCounts[i] / denominator);
                 if (!Float.isNaN(counts)) {
-                    normRecords.add(new ContactRecord(x, y, counts));
+                    normBinX[out] = x;
+                    normBinY[out] = y;
+                    normCounts[out] = counts;
+                    out++;
                 }
             }
             timeDiffThings[3] = System.currentTimeMillis();
 
-            return new Block(blockNumber, normRecords, zd.getBlockKey(blockNumber, no));
+            return new Block(blockNumber, normBinX, normBinY, normCounts, out, zd.getBlockKey(blockNumber, no));
         }
     }
 
