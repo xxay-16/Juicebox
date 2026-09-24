@@ -1081,12 +1081,12 @@ public class HeatmapRenderer {
     private void renderSimpleMap(List<Block> blocks, ColorScale cs,
                                  int width, int height, boolean sameChr, int originX, int originY) {
         for (Block b : blocks) {
-            Collection<ContactRecord> recs = b.getContactRecords();
-            if (recs != null) {
-                for (ContactRecord rec : recs) {
-                    float score = rec.getCounts();
-                    simplePainting(cs, width, height, sameChr, originX, originY, rec, score);
-                }
+            int[] binXArr = b.getBinXArray();
+            int[] binYArr = b.getBinYArray();
+            float[] countsArr = b.getCountsArray();
+            int n = b.size();
+            for (int i = 0; i < n; i++) {
+                simplePainting(cs, width, height, sameChr, originX, originY, binXArr[i], binYArr[i], countsArr[i]);
             }
         }
     }
@@ -1094,12 +1094,13 @@ public class HeatmapRenderer {
     private void renderSimpleLogMap(List<Block> blocks, ColorScale cs,
                                     int width, int height, boolean sameChr, int originX, int originY) {
         for (Block b : blocks) {
-            Collection<ContactRecord> recs = b.getContactRecords();
-            if (recs != null) {
-                for (ContactRecord rec : recs) {
-                    float score = (float) Math.log(1 + rec.getCounts());
-                    simplePainting(cs, width, height, sameChr, originX, originY, rec, score);
-                }
+            int[] binXArr = b.getBinXArray();
+            int[] binYArr = b.getBinYArray();
+            float[] countsArr = b.getCountsArray();
+            int n = b.size();
+            for (int i = 0; i < n; i++) {
+                float score = (float) Math.log(1 + countsArr[i]);
+                simplePainting(cs, width, height, sameChr, originX, originY, binXArr[i], binYArr[i], score);
             }
         }
     }
@@ -1212,12 +1213,26 @@ public class HeatmapRenderer {
         aboveDiagonalPainting(originX, originY, width, height, rec);
     }
 
+    // primitive (binX, binY) overloads used by the columnar render loops; they avoid
+    // materializing a ContactRecord per record on the hot path
+    private void interPainting(int originX, int originY, int width, int height, int binX, int binY) {
+        aboveDiagonalPainting(originX, originY, width, height, binX, binY);
+    }
+
     private void simplePainting(ColorScale cs, int width, int height, boolean sameChr, int originX, int originY, ContactRecord rec, float score) {
         if (Float.isNaN(score) || Float.isInfinite(score)) return;
         setColor(cs.getColor(score));
 
         aboveDiagonalPainting(originX, originY, width, height, rec);
         if (sameChr) belowDiagonalPainting(originX, originY, width, height, rec);
+    }
+
+    private void simplePainting(ColorScale cs, int width, int height, boolean sameChr, int originX, int originY, int binX, int binY, float score) {
+        if (Float.isNaN(score) || Float.isInfinite(score)) return;
+        setColor(cs.getColor(score));
+
+        aboveDiagonalPainting(originX, originY, width, height, binX, binY);
+        if (sameChr) belowDiagonalPainting(originX, originY, width, height, binX, binY);
     }
 
     private boolean logPainting(ColorScale cs, float num, float den, float obsExpected, float ctrlExpected) {
@@ -1244,6 +1259,16 @@ public class HeatmapRenderer {
         belowDiagonalPainting(originX, originY, width, height, rec);
     }
 
+    private void intraPainting(int originX, int originY, int width, int height, int binX, int binY) {
+        aboveDiagonalPainting(originX, originY, width, height, binX, binY);
+        belowDiagonalPainting(originX, originY, width, height, binX, binY);
+    }
+
+    private void intraPainting2(int originX, int originY, int width, int height, boolean sameChr, int binX, int binY) {
+        aboveDiagonalPainting(originX, originY, width, height, binX, binY);
+        if (sameChr) belowDiagonalPainting(originX, originY, width, height, binX, binY);
+    }
+
     @SuppressWarnings("SuspiciousNameCombination")
     private void belowDiagonalPainting(int originX, int originY, int width, int height, ContactRecord rec) {
         int binX = rec.getBinX();
@@ -1253,9 +1278,20 @@ public class HeatmapRenderer {
         }
     }
 
+    @SuppressWarnings("SuspiciousNameCombination")
+    private void belowDiagonalPainting(int originX, int originY, int width, int height, int binX, int binY) {
+        if (binX != binY) {
+            actualDiagonalPainting(originX, originY, width, height, binY, binX);
+        }
+    }
+
     //justPainting(originX, originY, width, height, rec);
     private void aboveDiagonalPainting(int originX, int originY, int width, int height, ContactRecord rec) {
         actualDiagonalPainting(originX, originY, width, height, rec.getBinX(), rec.getBinY());
+    }
+
+    private void aboveDiagonalPainting(int originX, int originY, int width, int height, int binX, int binY) {
+        actualDiagonalPainting(originX, originY, width, height, binX, binY);
     }
 
     private void actualDiagonalPainting(int originX, int originY, int width, int height, int binX, int binY) {
