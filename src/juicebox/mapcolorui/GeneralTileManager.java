@@ -58,6 +58,11 @@ public class GeneralTileManager {
         int tTop = (int) (binOriginY / imageTileWidth);
         int tBottom = (int) Math.ceil(bBottom / imageTileWidth);
 
+        // conservative parallelism: load the blocks for every visible tile into the cache on
+        // worker threads first, so the serial render pass below never waits on disk I/O or parsing
+        prefetchVisibleBlocks(zd, controlZd, tTop, tBottom, tLeft, tRight, displayOption,
+                observedNormalizationType, controlNormalizationType, hic);
+
         for (int tileRow = tTop; tileRow <= tBottom; tileRow++) {
             for (int tileColumn = tLeft; tileColumn <= tRight; tileColumn++) {
 
@@ -207,6 +212,58 @@ public class GeneralTileManager {
 
     public void clearTileCache() {
         mapTileManager.clearTileCache();
+    }
+
+    /**
+     * Conservative parallelism: preloads the data blocks for every visible tile into the
+     * MatrixZoomData block cache on worker threads. Tile rendering itself stays on the EDT;
+     * only the disk I/O, decompression, parsing, and assembly transform are parallelized.
+     * Block loads are deduplicated by bin range so overlapping tiles do not re-read.
+     */
+    private void prefetchVisibleBlocks(final MatrixZoomData zd, final MatrixZoomData controlZd,
+                                       int tTop, int tBottom, int tLeft, int tRight,
+                                       MatrixType displayOption, final NormalizationType observedNormalizationType,
+                                       NormalizationType controlNormalizationType, final HiC hic) {
+        // deduplicate the bin ranges first (many tiles share blocks)
+        java.util.Set<String> ranges = new java.util.HashSet<>();
+        final java.util.List<long[]> uniqueRanges = new java.util.ArrayList<>();
+        for (int tileRow = tTop; tileRow <= tBottom; tileRow++) {
+            for (int tileColumn = tLeft; tileColumn <= tRight; tileColumn++) {
+                long binX1 = (long) tileColumn * imageTileWidth;
+                long binY1 = (long) tileRow * imageTileWidth;
+                long binX2 = binX1 + imageTileWidth;
+                long binY2 = binY1 + imageTileWidth;
+                String key = binX1 + ":" + binY1;
+                if (ranges.add(key)) {
+                    uniqueRanges.add(new long[]{binX1, binY1, binX2, binY2});
+                }
+            }
+        }
+        if (uniqueRanges.size() < 2) {
+            for (long[] r : uniqueRanges) {
+                zd.prefetchBlocks(r[0], r[1], r[2], r[3], observedNormalizationType);
+            }
+            return;
+        }
+
+        java.util.concurrent.ExecutorService pool = HiCGlobals.newFixedThreadPool();
+        java.util.List<java.util.concurrent.Future<?>> futures = new java.util.ArrayList<>(uniqueRanges.size());
+        for (final long[] r : uniqueRanges) {
+            futures.add(pool.submit(new Runnable() {
+                @Override
+                public void run() {
+                    zd.prefetchBlocks(r[0], r[1], r[2], r[3], observedNormalizationType);
+                }
+            }));
+        }
+        pool.shutdown();
+        for (java.util.concurrent.Future<?> future : futures) {
+            try {
+                future.get();
+            } catch (Exception ignored) {
+                // prefetch is best-effort; the render pass retries anything that failed
+            }
+        }
     }
 
     static class ImageTile {

@@ -239,7 +239,7 @@ public class MatrixZoomData {
      */
     public List<Block> getNormalizedBlocksOverlapping(long binX1, long binY1, long binX2, long binY2, final NormalizationType no,
                                                       boolean isImportant, boolean fillUnderDiagonal) {
-        
+
         final List<Block> blockList = Collections.synchronizedList(new ArrayList<>());
         if (reader.getVersion() > 8 && isIntra) {
             return addNormalizedBlocksToListV9(blockList, (int) binX1, (int) binY1, (int) binX2, (int) binY2, no);
@@ -251,6 +251,20 @@ public class MatrixZoomData {
             } else {
                 return addNormalizedBlocksToList(blockList, (int) binX1, (int) binY1, (int) binX2, (int) binY2, no, fillUnderDiagonal);
             }
+        }
+    }
+
+    /**
+     * Loads the blocks overlapping the given bin range into the block cache without
+     * returning them, so a later same-range getNormalizedBlocksOverlapping call hits
+     * the cache instead of reading and parsing from disk. Safe to call concurrently
+     * from worker threads; duplicate loads of the same block are deduplicated by the cache.
+     */
+    public void prefetchBlocks(long binX1, long binY1, long binX2, long binY2, NormalizationType no) {
+        try {
+            getNormalizedBlocksOverlapping(binX1, binY1, binX2, binY2, no, true, true);
+        } catch (Exception ignored) {
+            // prefetch is best-effort; the rendering pass will retry anything that failed
         }
     }
 
