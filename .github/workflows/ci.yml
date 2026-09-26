@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [master, refactor-architecture, soa-block]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build juicebox-core and run unit tests
+        run: ./gradlew :juicebox-core:build --console=plain
+
+      - name: Build desktop uber-jar
+        run: ./gradlew :juicebox-app:uberJar --console=plain
+
+      - name: Verify commons-math3 is bundled
+        run: |
+          if ! unzip -l out/artifacts/Juicebox_jar/Juicebox.jar | grep -q "org/apache/commons/math3/linear/RealMatrix.class"; then
+            echo "commons-math3 missing from uber-jar"
+            exit 1
+          fi
+          echo "commons-math3 present"
+
+      - name: Verify .hic read via HiCTools (exit code must be 0)
+        run: |
+          java -cp out/artifacts/Juicebox_jar/Juicebox.jar juicebox.tools.HiCTools \
+            dump observed NONE data/inter.hic 1 1 BP 2500000 /tmp/dump-ci.txt
+          test -s /tmp/dump-ci.txt
+          echo "HiCTools dump produced $(wc -l < /tmp/dump-ci.txt) rows"
+
+      - name: Upload test report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: juicebox-core/build/reports/tests/test
