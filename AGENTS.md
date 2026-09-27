@@ -6,27 +6,26 @@ This workspace contains a Windows build and repair of the Juicebox desktop appli
 
 - Upstream baseline: Juicebox `v2.17.00`
 - Upstream commit: `c7b6988cddfca060c5cac156147f1d9d8dcd5102`
-- Canonical working source: this repository root (`src`, `build.xml`)
+- Canonical working source: this repository root (`src`, `juicebox-core`, `juicebox-app`)
 - Canonical runtime/compiler: JDK 25 at `D:\runtime\jdk-25`
-- Ant: `.build-tools\apache-ant-1.10.15`
+- Build: Gradle via the checked-in wrapper (`gradlew` / `gradlew.bat`); no pre-installed Gradle needed
 
 `juicebox-source-v2.17.00-pristine` is an unmodified reference checkout only. Do not use it as the active source tree or add fixes there. The root `juicebox.jar` is an old binary reference and must not be overwritten without an explicit request.
 
 ## Build
 
-When working in the shared parent workspace, the same source is at `juicebox-source-v2.17.00-jdk25`. After cloning this repository, use the repository root. Build the active source with JDK 25:
+The whole project builds with Gradle. Build the desktop uber-jar with JDK 25:
 
 ```powershell
 $env:JAVA_HOME = 'D:\runtime\jdk-25'
-$env:ANT_HOME = (Resolve-Path '.build-tools\apache-ant-1.10.15').Path
-& "$env:ANT_HOME\bin\ant.bat" `
-  '-f' 'build.xml' `
-  '-Dskip.tests=true' `
-  '-Djdk.home.1.8=D:\runtime\jdk-25' `
-  'all'
+.\gradlew.bat :juicebox-app:uberJar
 ```
 
-The `jdk.home.1.8` property name is inherited from the upstream Ant file. In this workspace it is intentionally pointed at JDK 25. Do not download or restore JDK 8 unless the user explicitly asks for a compatibility comparison.
+Build and test just the core module (data structures + assembly transform + .hic parser + normalizer):
+
+```powershell
+.\gradlew.bat :juicebox-core:build
+```
 
 The GUI artifact is:
 
@@ -71,7 +70,7 @@ Preserve header IDs, component lengths, signed orientations, and one-to-one comp
 
 At minimum, after a source or packaging change:
 
-- Confirm Ant reports `BUILD SUCCESSFUL`.
+- Confirm the Gradle build reports `BUILD SUCCESSFUL` (`.\gradlew.bat :juicebox-app:uberJar`).
 - Check that the output JAR contains `org/apache/commons/math3/linear/RealMatrix.class`.
 - Read a representative `.hic` matrix with `juicebox.tools.HiCTools` and require exit code `0`.
 - Run the Windows assembly-path probe or an equivalent import test so `AssemblyStateTracker` does not throw `ArrayIndexOutOfBoundsException`.
