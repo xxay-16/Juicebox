@@ -1033,6 +1033,8 @@ public class DatasetReaderV2 extends AbstractDatasetReader {
     }
 
     private byte[] decompress(byte[] compressedBytes) {
-        return compressionUtils.decompress(compressedBytes);
+        // inflate directly into a sized buffer instead of the multi-copy
+        // ByteArrayOutputStream loop in CompressionUtils.decompress
+        return juicebox.core.io.FastInflater.decompress(compressedBytes, compressedBytes.length * 8);
     }
 }
