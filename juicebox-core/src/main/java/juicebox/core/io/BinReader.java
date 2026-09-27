@@ -24,6 +24,7 @@
 
 package juicebox.core.io;
 import juicebox.core.data.ContactRecord;
+import juicebox.core.data.ContactRecordBuffer;
 
 import htsjdk.tribble.util.LittleEndianInputStream;
 
@@ -84,6 +85,104 @@ public class BinReader {
             }
         } else {
             throw new RuntimeException("Unknown block type: " + type);
+        }
+    }
+
+    /**
+     * Columnar variant: writes records into a growable ContactRecordBuffer instead of
+     * boxing a ContactRecord per record into a List. Same wire format, same output.
+     */
+    public static void handleBinTypeToBuffer(LittleEndianInputStream dis, byte type, int binXOffset, int binYOffset,
+                                             ContactRecordBuffer records, boolean useShortBinX, boolean useShortBinY,
+                                             boolean useShort) throws IOException {
+        if (type == 1) {
+            if (useShortBinX && useShortBinY) {
+                handleBothShortsToBuffer(dis, binXOffset, binYOffset, useShort, records);
+            } else if (useShortBinX) {
+                handleShortXToBuffer(dis, binXOffset, binYOffset, useShort, records);
+            } else if (useShortBinY) {
+                handleShortYToBuffer(dis, binXOffset, binYOffset, useShort, records);
+            } else {
+                handleBothIntsToBuffer(dis, binXOffset, binYOffset, useShort, records);
+            }
+        } else if (type == 2) {
+            int nPts = dis.readInt();
+            int w = dis.readShort();
+            for (int i = 0; i < nPts; i++) {
+                int row = i / w;
+                int col = i - row * w;
+                int bin1 = binXOffset + col;
+                int bin2 = binYOffset + row;
+                if (useShort) {
+                    short counts = dis.readShort();
+                    if (counts != Short.MIN_VALUE) {
+                        records.add(bin1, bin2, counts);
+                    }
+                } else {
+                    float counts = dis.readFloat();
+                    if (!Float.isNaN(counts)) {
+                        records.add(bin1, bin2, counts);
+                    }
+                }
+            }
+        } else {
+            throw new RuntimeException("Unknown block type: " + type);
+        }
+    }
+
+    private static void handleBothIntsToBuffer(LittleEndianInputStream dis, int binXOffset, int binYOffset, boolean useShort, ContactRecordBuffer records) throws IOException {
+        int rowCount = dis.readInt();
+        for (int i = 0; i < rowCount; i++) {
+            int binY = binYOffset + dis.readInt();
+            int colCount = dis.readInt();
+            for (int j = 0; j < colCount; j++) {
+                int binX = binXOffset + dis.readInt();
+                float counts = useShort ? dis.readShort() : dis.readFloat();
+                records.add(binX, binY, counts);
+            }
+        }
+    }
+
+    private static void handleShortYToBuffer(LittleEndianInputStream dis, int binXOffset, int binYOffset, boolean useShort,
+                                             ContactRecordBuffer records) throws IOException {
+        int rowCount = dis.readShort();
+        for (int i = 0; i < rowCount; i++) {
+            int binY = binYOffset + dis.readShort();
+            int colCount = dis.readInt();
+            for (int j = 0; j < colCount; j++) {
+                int binX = binXOffset + dis.readInt();
+                float counts = useShort ? dis.readShort() : dis.readFloat();
+                records.add(binX, binY, counts);
+            }
+        }
+    }
+
+    private static void handleShortXToBuffer(LittleEndianInputStream dis, int binXOffset, int binYOffset, boolean useShort,
+                                             ContactRecordBuffer records) throws IOException {
+        int rowCount = dis.readInt();
+        for (int i = 0; i < rowCount; i++) {
+            int binY = binYOffset + dis.readInt();
+            int colCount = dis.readShort();
+            for (int j = 0; j < colCount; j++) {
+                int binX = binXOffset + dis.readShort();
+                float counts = useShort ? dis.readShort() : dis.readFloat();
+                records.add(binX, binY, counts);
+            }
+        }
+    }
+
+    private static void handleBothShortsToBuffer(LittleEndianInputStream dis, int binXOffset, int binYOffset, boolean useShort,
+                                                 ContactRecordBuffer records) throws IOException {
+        records.ensureCapacity(dis.available() / (useShort ? 4 : 6) + 8);
+        int rowCount = dis.readShort();
+        for (int i = 0; i < rowCount; i++) {
+            int binY = binYOffset + dis.readShort();
+            int colCount = dis.readShort();
+            for (int j = 0; j < colCount; j++) {
+                int binX = binXOffset + dis.readShort();
+                float counts = useShort ? dis.readShort() : dis.readFloat();
+                records.add(binX, binY, counts);
+            }
         }
     }
 

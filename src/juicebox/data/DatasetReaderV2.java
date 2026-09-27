@@ -990,7 +990,8 @@ public class DatasetReaderV2 extends AbstractDatasetReader {
                 int nRecords = dis.readInt();
                 // nRecords is an upper bound that overestimates by a few tenths of a percent in
                 // practice (per-row overhead), so presize to 90% of it like BinReader does
-                List<ContactRecord> records = new ArrayList<>((int) Math.min(Integer.MAX_VALUE, nRecords * 9L / 10));
+                juicebox.core.data.ContactRecordBuffer records =
+                        new juicebox.core.data.ContactRecordBuffer((int) Math.min(Integer.MAX_VALUE, nRecords * 9L / 10));
                 timeDiffThings[4] = System.currentTimeMillis();
 
                 if (version < 7) {
@@ -998,7 +999,7 @@ public class DatasetReaderV2 extends AbstractDatasetReader {
                         int binX = dis.readInt();
                         int binY = dis.readInt();
                         float counts = dis.readFloat();
-                        records.add(new ContactRecord(binX, binY, counts));
+                        records.add(binX, binY, counts);
                     }
                 } else {
 
@@ -1013,11 +1014,11 @@ public class DatasetReaderV2 extends AbstractDatasetReader {
                     }
 
                     byte type = dis.readByte();
-                    BinReader.handleBinType(dis, type, binXOffset, binYOffset, records,
+                    BinReader.handleBinTypeToBuffer(dis, type, binXOffset, binYOffset, records,
                             useShortBinX, useShortBinY, useShort);
 
                 }
-                b = new Block(blockNumber, records, zd.getBlockKey(blockNumber, NormalizationHandler.NONE));
+                b = records.toBlock(blockNumber, zd.getBlockKey(blockNumber, NormalizationHandler.NONE));
                 timeDiffThings[5] = System.currentTimeMillis();
                 for (int ii = 0; ii < timeDiffThings.length - 1; ii++) {
                     globalTimeDiffThings[ii] += (timeDiffThings[ii + 1] - timeDiffThings[ii]) / 1000.0;
