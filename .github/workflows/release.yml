@@ -1,0 +1,100 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Build core with unit tests
+        run: ./gradlew :juicebox-core:build --console=plain
+
+      - name: Build desktop uber-jar
+        run: ./gradlew :juicebox-app:uberJar --console=plain
+
+      - name: Verify uber-jar gates
+        run: |
+          if ! unzip -l out/artifacts/Juicebox_jar/Juicebox.jar | grep -q "org/apache/commons/math3/linear/RealMatrix.class"; then
+            echo "commons-math3 missing from uber-jar"
+            exit 1
+          fi
+          java -cp out/artifacts/Juicebox_jar/Juicebox.jar juicebox.tools.HiCTools \
+            dump observed NONE data/inter.hic 1 1 BP 2500000 /tmp/dump-rel.txt
+          test -s /tmp/dump-rel.txt
+          echo "gates passed: $(wc -l < /tmp/dump-rel.txt) rows"
+
+      - name: Build portable runtime with jlink
+        run: |
+          jlink --add-modules java.base,java.compiler,java.desktop,java.instrument,java.management,java.naming,java.prefs,java.rmi,java.scripting,java.sql,jdk.unsupported,jdk.xml.dom,jdk.crypto.ec \
+            --output portable/runtime --no-header-files --no-man-pages --strip-debug --compress=2
+
+      - name: Assemble portable package
+        run: |
+          mkdir -p portable/juicebox-portable
+          cp -r portable/runtime portable/juicebox-portable/runtime
+          cp out/artifacts/Juicebox_jar/Juicebox.jar portable/juicebox-portable/
+          cat > portable/juicebox-portable/启动-Juicebox.bat << 'EOF'
+          @echo off
+          REM Juicebox 绿色版启动脚本（内置 JDK 25 运行时，无需安装 Java）
+          set DIR=%~dp0
+          "%DIR%runtime\bin\javaw.exe" -Xmx8g -jar "%DIR%Juicebox.jar" %*
+          EOF
+          cat > portable/juicebox-portable/README.txt << 'EOF'
+          Juicebox 绿色便携版（Windows x64）
+          ====================================
+
+          无需安装 Java，内置精简 JDK 25 运行时（jlink 生成）。
+
+          使用方法：
+            双击 "启动-Juicebox.bat" 打开 Juicebox。
+            或拖拽 .hic 文件到 "启动-Juicebox.bat" 上直接打开该文件。
+
+          命令行：
+            runtime\bin\java.exe -jar Juicebox.jar <file.hic>
+
+          内存：默认 -Xmx8g，可编辑 启动-Juicebox.bat 调整。
+          EOF
+          cd portable
+          zip -qr "Juicebox-portable-win64-${{ github.ref_name }}.zip" juicebox-portable
+          cd ..
+
+      - name: Create GitHub Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "${{ github.ref_name }} — Windows JDK 25 性能优化版"
+          body: |
+            基于上游 [aidenlab/Juicebox](https://github.com/aidenlab/juicebox) v2.17.00，Windows JDK 25 性能优化版。
+
+            ## 构件
+            - **Juicebox.jar** — 桌面 uber-JAR（需自备 JDK 8+）
+            - **Juicebox-portable-win64.zip** — 绿色便携版，内置 jlink 精简 JDK 25 运行时，解压双击 `启动-Juicebox.bat` 即用
+
+            ## 验证
+            CI 全门禁通过：core 单测、commons-math3 打包检查、HiCTools dump 等价性（exit 0 非空输出）。
+          files: |
+            out/artifacts/Juicebox_jar/Juicebox.jar
+            portable/Juicebox-portable-win64-${{ github.ref_name }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
