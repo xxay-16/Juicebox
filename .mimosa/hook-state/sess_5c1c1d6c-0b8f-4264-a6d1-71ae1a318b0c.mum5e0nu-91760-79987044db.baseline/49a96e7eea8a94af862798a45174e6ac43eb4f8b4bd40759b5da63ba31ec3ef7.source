@@ -1,0 +1,41 @@
+// Root build script for the Juicebox multi-module build.
+// Modules:
+//   juicebox-core  - UI-free data structures and algorithms (Block, ContactRecord,
+//                    assembly coordinate transforms, normalization). Unit-testable.
+//   juicebox-app   - the Swing desktop application (everything else for now).
+
+subprojects {
+    apply plugin: 'java'
+
+    group = 'com.xxay16.juicebox'
+    version = '2.17.00-perf'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(25)
+        }
+    }
+
+    repositories {
+        mavenCentral()
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        options.release = 21   // keep runtime compatibility with the current uber-jar target
+    }
+
+    tasks.withType(Test).configureEach {
+        useJUnitPlatform()
+        testLogging {
+            events 'passed', 'skipped', 'failed'
+        }
+    }
+
+    dependencies {
+        testImplementation platform('org.junit:junit-bom:5.10.2')
+        testImplementation 'org.junit.jupiter:junit-jupiter'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+        testImplementation 'org.assertj:assertj-core:3.25.3'
+    }
+}

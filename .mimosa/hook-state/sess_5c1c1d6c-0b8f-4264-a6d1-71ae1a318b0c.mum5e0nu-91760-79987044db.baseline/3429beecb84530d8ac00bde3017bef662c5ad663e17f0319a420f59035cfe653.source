@@ -1,0 +1,8 @@
+// juicebox-core: UI-free data structures and algorithms.
+// No Swing, no windowui, no gui - this module must stay dependency-light so the
+// core algorithms can be unit-tested and reused independently of the desktop app.
+
+dependencies {
+    // htsjdk little-endian stream used by the .hic block parser (core.io.BinReader)
+    implementation files('../lib/broadinstitute/htsjdk-1.139.jar')
+}
