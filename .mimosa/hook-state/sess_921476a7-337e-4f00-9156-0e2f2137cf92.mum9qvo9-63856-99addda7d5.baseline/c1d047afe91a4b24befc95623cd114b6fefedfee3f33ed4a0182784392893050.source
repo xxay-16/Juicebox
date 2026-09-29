@@ -1201,9 +1201,6 @@ public class HeatmapRenderer {
                                         int width, int height, boolean sameChr, int originX, int originY) {
         int w = directPixelWidth;
         int h = directPixelHeight;
-        // score->RGB cache: color computation (getColor + getRGB) dominates the render
-        // cost, and records repeat scores heavily inside a tile, so memoize per tile
-        final java.util.HashMap<Integer, Integer> rgbCache = new java.util.HashMap<>(4096);
         for (Block b : blocks) {
             int[] binXArr = b.getBinXArray();
             int[] binYArr = b.getBinYArray();
@@ -1216,7 +1213,7 @@ public class HeatmapRenderer {
                     i++;
                     continue;
                 }
-                int color = rgbOf(cs, score, rgbCache);
+                int color = cs.getColor(score).getRGB();
                 int rowY = binYArr[i];
                 int runStart = i;
                 int runBinXStart = binXArr[i];
@@ -1226,7 +1223,7 @@ public class HeatmapRenderer {
                 while (j < n && binYArr[j] == rowY) {
                     float s2 = countsArr[j];
                     if (Float.isNaN(s2) || Float.isInfinite(s2)) break;
-                    if (rgbOf(cs, s2, rgbCache) != color) break;
+                    if (cs.getColor(s2).getRGB() != color) break;
                     // only extend if the next binX continues the run contiguously
                     if (binXArr[j] != runBinXEnd + 1) break;
                     runBinXEnd = binXArr[j];
@@ -1253,20 +1250,6 @@ public class HeatmapRenderer {
                 i = j;
             }
         }
-    }
-
-    private static int rgbOf(ColorScale cs, float score, java.util.HashMap<Integer, Integer> rgbCache) {
-        int bits = Float.floatToIntBits(score);
-        Integer cached = rgbCache.get(bits);
-        if (cached != null) {
-            return cached;
-        }
-        int rgb = cs.getColor(score).getRGB();
-        // cap the cache so a pathological score distribution can't grow it unbounded
-        if (rgbCache.size() < 65536) {
-            rgbCache.put(bits, rgb);
-        }
-        return rgb;
     }
 
     private void fillRun(int binY, int binXStart, int binXEnd, int color, int originX, int originY,

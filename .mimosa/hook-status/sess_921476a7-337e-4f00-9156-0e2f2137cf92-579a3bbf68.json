@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "mimosa-hook-status/v1",
+  "recordedAt": "2026-09-29T06:02:15.536Z",
+  "sessionId": "sess_921476a7-337e-4f00-9156-0e2f2137cf92",
+  "event": "PostToolUse",
+  "toolName": "Edit",
+  "file": "src/juicebox/mapcolorui/HeatmapRenderer.java",
+  "outcome": "clear",
+  "coverage": "complete",
+  "findingCount": 0,
+  "durationMs": 16,
+  "hostState": "hook_complete",
+  "reportHint": ".mimosa/reports/"
+}
